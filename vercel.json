@@ -1,3 +1,12 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
+  "version": 2,
+  "builds": [
+    { "src": "api/index.ts", "use": "@vercel/node" },
+    { "src": "public/**", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/index" },
+    { "src": "/(.*\\.(js|css|png|jpg|svg|ico|woff2?))", "dest": "/public/$1" },
+    { "src": "/(.*)", "dest": "/api/index" }
+  ]
 }
