@@ -1,4 +1,4 @@
-import { createAppInstance } from '../src/app.js';
+import { createAppInstance } from '../src/app';
 
 const appPromise = createAppInstance();
 
