@@ -16,13 +16,13 @@ await esbuild.build({
   entryPoints: ['api/index.ts'],
   bundle: true,
   platform: 'node',
-  target: 'node20',
+  target: 'node22',
   format: 'cjs',
   outfile: `${FUNC_DIR}/index.js`,
 });
 
 writeFileSync(`${FUNC_DIR}/.vc-config.json`, JSON.stringify({
-  runtime: 'nodejs20.x',
+  runtime: 'nodejs22.x',
   handler: 'index.js',
   launcherType: 'Nodejs'
 }));
