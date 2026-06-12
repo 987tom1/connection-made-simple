@@ -2,7 +2,7 @@ import type { IRepository } from './base.repository';
 import type { User } from '../../core/entities/user';
 import type { Student } from '../../core/entities/student';
 import type { Leader } from '../../core/entities/leader';
-import type { Allocation } from '../../core/entities/allocation';
+import type { Connection } from '../../core/entities/connection';
 import type {
   ServiceSession,
   ServiceAttendance,
@@ -30,10 +30,10 @@ export interface ILeaderRepository extends IRepository<Leader> {
   findActive(): Promise<Leader[]>;
 }
 
-export interface IAllocationRepository extends IRepository<Allocation> {
-  findByStudent(studentId: string): Promise<Allocation[]>;
-  findByLeader(leaderId: string): Promise<Allocation[]>;
-  findByStudentAndLeader(studentId: string, leaderId: string): Promise<Allocation | null>;
+export interface IConnectionRepository extends IRepository<Connection> {
+  findByStudent(studentId: string): Promise<Connection[]>;
+  findByLeader(leaderId: string): Promise<Connection[]>;
+  findByStudentAndLeader(studentId: string, leaderId: string): Promise<Connection | null>;
   deleteByStudentAndLeader(studentId: string, leaderId: string): Promise<boolean>;
 }
 

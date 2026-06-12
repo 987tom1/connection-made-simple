@@ -13,7 +13,7 @@ export interface AppSettings {
   serviceName: string;
   lifegroupName: string;
   // Allocation lock: if set and today >= lockDate, non-admin writes are blocked
-  allocationLockDate: string | null;
+  connectionLockDate: string | null;
   updatedAt: ISODateString;
 }
 
