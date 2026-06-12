@@ -1,0 +1,60 @@
+CONNECTION MADE SIMPLE — SECURITY ACTIONS REQUIRED
+====================================================
+These cannot be done in code — they require manual steps in external dashboards.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CRITICAL — Do immediately
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. SET SESSION_SECRET IN VERCEL
+   Without this, session tokens can be forged by anyone who knows the fallback value.
+
+   Steps:
+   a) Generate a secret — run this in a terminal:
+      node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   b) Vercel dashboard → Project → Settings → Environment Variables
+   c) Add: SESSION_SECRET = <the generated value>
+      Set scope: Production (and Preview if you use preview deployments)
+   d) Redeploy: Vercel dashboard → Deployments → Redeploy latest
+
+2. APPLY MIGRATION 003 IN SUPABASE
+   Fixes: settings table UUID type mismatch that will crash the app on first settings load.
+   Also enforces a single settings row (prevents concurrent cold-start race condition).
+
+   Steps:
+   a) Supabase dashboard → Project → SQL Editor
+   b) Paste and run the full contents of:
+      supabase/migrations/003_settings_singleton.sql
+   c) Verify it ran without errors
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+HIGH — Do soon
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. LOCK CORS TO YOUR DOMAIN
+   Currently accepts API requests from any website. Should be locked to your domain.
+
+   Steps:
+   a) Vercel dashboard → Project → Settings → Environment Variables
+   b) Add: CORS_ORIGINS = https://connection-made-simple.vercel.app
+   c) Redeploy
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LONGER TERM — When you have capacity
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. UPGRADE PASSWORD HASHING TO BCRYPT
+   Current: SHA-256 with salt — fast to brute-force with a GPU.
+   Target: bcrypt (slow by design, industry standard for passwords).
+   This requires a database migration + re-hash-on-login strategy.
+   Ask Claude to implement when ready — it's a medium-sized change.
+
+5. ADD SUPABASE ROW-LEVEL SECURITY (RLS)
+   Currently all tables are wide-open at the database level.
+   Access control lives entirely in the Express API layer, which is correct,
+   but RLS adds a second layer of defence if the database connection string
+   ever leaked. Especially important given this app holds minors' contact details.
+   Ask Claude to write a migration when ready.
