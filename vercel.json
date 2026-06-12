@@ -2,10 +2,15 @@
   "version": 2,
   "functions": {
     "api/index.ts": {
-      "includeFiles": "public/**"
+      "maxDuration": 30
     }
   },
   "routes": [
-    { "src": "/(.*)", "dest": "/api/index.ts" }
+    {
+      "src": "^/(auth|students|leaders|connections|overview|trends|at-risk|import|settings|admin|accounts|health)(/.*)?(\\?.*)?$",
+      "dest": "/api/index.ts"
+    },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
