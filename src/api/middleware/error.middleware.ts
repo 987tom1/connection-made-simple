@@ -16,6 +16,7 @@ export function sendError(res: Response, err: unknown): void {
     return;
   }
   const msg = err instanceof Error ? err.message : String(err);
-  console.error('Unhandled error:', msg);
-  res.status(500).json({ code: 'INTERNAL_ERROR', message: msg });
+  console.error('Unhandled error:', err instanceof Error ? (err.stack ?? msg) : msg);
+  const clientMsg = process.env['NODE_ENV'] === 'production' ? 'An unexpected error occurred' : msg;
+  res.status(500).json({ code: 'INTERNAL_ERROR', message: clientMsg });
 }

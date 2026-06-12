@@ -89,12 +89,13 @@ export class SupabaseSettingsRepository implements ISettingsRepository {
   }
 
   async getSettings(): Promise<AppSettings> {
-    const existing = await this.findById(SETTINGS_ID);
-    if (existing) return existing;
-    // Create default row
     const now = new Date().toISOString();
+    // Atomic upsert: insert defaults if no row exists; if a row already exists
+    // the trivial SET id=id no-op still returns it, so we always get the row
+    // in one query (prevents race on concurrent cold starts).
     const rows = await this.sql`
       insert into app_settings (
+        id,
         ministry_name,
         term_gap_days,
         reg_rate_numerator,
@@ -108,6 +109,7 @@ export class SupabaseSettingsRepository implements ISettingsRepository {
         updated_at
       )
       values (
+        ${SETTINGS_ID},
         ${DEFAULT_SETTINGS.ministryName},
         ${DEFAULT_SETTINGS.termGapDays},
         ${DEFAULT_SETTINGS.regRateNumerator},
@@ -120,6 +122,7 @@ export class SupabaseSettingsRepository implements ISettingsRepository {
         ${null},
         ${now}
       )
+      on conflict (id) do update set id = app_settings.id
       returning *
     `;
     return toAppSettings(rows[0]!);
@@ -134,6 +137,7 @@ export class SupabaseSettingsRepository implements ISettingsRepository {
   async save(settings: AppSettings): Promise<AppSettings> {
     const rows = await this.sql`
       insert into app_settings (
+        id,
         ministry_name,
         term_gap_days,
         reg_rate_numerator,
@@ -147,6 +151,7 @@ export class SupabaseSettingsRepository implements ISettingsRepository {
         updated_at
       )
       values (
+        ${SETTINGS_ID},
         ${settings.ministryName},
         ${settings.termGapDays},
         ${settings.regRateNumerator},
@@ -159,28 +164,20 @@ export class SupabaseSettingsRepository implements ISettingsRepository {
         ${settings.connectionLockDate ?? null},
         ${settings.updatedAt}
       )
-      on conflict do nothing
+      on conflict (id) do update set
+        ministry_name         = excluded.ministry_name,
+        term_gap_days         = excluded.term_gap_days,
+        reg_rate_numerator    = excluded.reg_rate_numerator,
+        reg_rate_denominator  = excluded.reg_rate_denominator,
+        risk_rate_numerator   = excluded.risk_rate_numerator,
+        risk_rate_denominator = excluded.risk_rate_denominator,
+        valid_threshold_pct   = excluded.valid_threshold_pct,
+        service_name          = excluded.service_name,
+        lifegroup_name        = excluded.lifegroup_name,
+        connection_lock_date  = excluded.connection_lock_date,
+        updated_at            = excluded.updated_at
       returning *
     `;
-    // If on conflict did nothing (row already existed), do an update instead
-    if (rows.length === 0) {
-      const updated = await this.sql`
-        update app_settings set
-          ministry_name         = ${settings.ministryName},
-          term_gap_days         = ${settings.termGapDays},
-          reg_rate_numerator    = ${settings.regRateNumerator},
-          reg_rate_denominator  = ${settings.regRateDenominator},
-          risk_rate_numerator   = ${settings.riskRateNumerator},
-          risk_rate_denominator = ${settings.riskRateDenominator},
-          valid_threshold_pct   = ${settings.validThresholdPct},
-          service_name          = ${settings.serviceName},
-          lifegroup_name        = ${settings.lifegroupName},
-          connection_lock_date  = ${settings.connectionLockDate ?? null},
-          updated_at            = ${settings.updatedAt}
-        returning *
-      `;
-      return toAppSettings(updated[0]!);
-    }
     return toAppSettings(rows[0]!);
   }
 
