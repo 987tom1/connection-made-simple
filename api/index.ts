@@ -1,38 +1,9 @@
-import { createAppInstance } from '../src/app';
-
-// Node.js 15+ crashes the process on unhandled rejections. Postgres background work
-// (idle-connection teardown, reconnect probes) can produce these in serverless.
-// Registering this handler prevents Lambda crashes; the error is still logged.
-process.on('unhandledRejection', (reason: unknown) => {
-  console.error('[CMS] unhandledRejection:', reason);
-});
-
-process.on('uncaughtException', (err: Error) => {
-  console.error('[CMS] uncaughtException:', err.message, err.stack);
-});
-
-let appPromise: ReturnType<typeof createAppInstance> | null = null;
-
-function getApp() {
-  if (!appPromise) {
-    appPromise = createAppInstance().catch((err) => {
-      console.error('[CMS] createAppInstance failed:', err);
-      appPromise = null;
-      throw err;
-    });
-  }
-  return appPromise;
-}
-
-async function handler(req: any, res: any): Promise<void> {
-  try {
-    const app = await getApp();
-    app(req, res);
-  } catch (err) {
-    console.error('[CMS] handler error:', err);
-    res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: String(err) }));
-  }
+// DIAGNOSTIC: bare-minimum handler with zero imports.
+// If this returns 200, the crash is in our app code.
+// If this also crashes, the problem is the Lambda invocation mechanism.
+function handler(req: any, res: any): void {
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ ok: true, url: req.url, method: req.method }));
 }
 
 module.exports = handler;
