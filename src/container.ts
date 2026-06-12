@@ -17,6 +17,22 @@ import {
   InMemoryAuditRepository,
 } from './repositories/in-memory';
 import { JsonFilePersistence } from './repositories/persistence';
+import {
+  SupabaseUserRepository,
+  SupabaseStudentRepository,
+  SupabaseLeaderRepository,
+  SupabaseConnectionRepository,
+  SupabaseServiceSessionRepository,
+  SupabaseServiceAttendanceRepository,
+  SupabaseLifegroupRepository,
+  SupabaseLifegroupWeekRepository,
+  SupabaseLifegroupAttendanceRepository,
+  SupabaseImportRepository,
+  SupabaseSettingsRepository,
+  SupabaseSnapshotRepository,
+  SupabaseAuditRepository,
+  getSqlClient,
+} from './repositories/supabase/index';
 
 import type {
   IUserRepository,
@@ -87,22 +103,50 @@ function makeJson<T>(filename: string): JsonFilePersistence<T> {
 }
 
 export async function buildContainer(): Promise<Container> {
+  const useSupabase = env.PERSISTENCE === 'supabase';
   const useJson = env.PERSISTENCE === 'json';
+  const sql = useSupabase ? getSqlClient() : null!;
 
   // ----- Repositories -----
-  const users: IUserRepository = new InMemoryUserRepository(useJson ? makeJson('users.json') : undefined);
-  const students: IStudentRepository = new InMemoryStudentRepository(useJson ? makeJson('students.json') : undefined);
-  const leaders: ILeaderRepository = new InMemoryLeaderRepository(useJson ? makeJson('leaders.json') : undefined);
-  const connections: IConnectionRepository = new InMemoryConnectionRepository(useJson ? makeJson('connections.json') : undefined);
-  const serviceSessions: IServiceSessionRepository = new InMemoryServiceSessionRepository(useJson ? makeJson('service-sessions.json') : undefined);
-  const serviceAttendance: IServiceAttendanceRepository = new InMemoryServiceAttendanceRepository(useJson ? makeJson('service-attendance.json') : undefined);
-  const lifegroups: ILifegroupRepository = new InMemoryLifegroupRepository(useJson ? makeJson('lifegroups.json') : undefined);
-  const lifegroupWeeks: ILifegroupWeekRepository = new InMemoryLifegroupWeekRepository(useJson ? makeJson('lifegroup-weeks.json') : undefined);
-  const lifegroupAttendance: ILifegroupAttendanceRepository = new InMemoryLifegroupAttendanceRepository(useJson ? makeJson('lifegroup-attendance.json') : undefined);
-  const imports: IImportRepository = new InMemoryImportRepository(useJson ? makeJson('imports.json') : undefined);
-  const settings: ISettingsRepository = new InMemorySettingsRepository(useJson ? makeJson('settings.json') : undefined);
-  const snapshots: ISnapshotRepository = new InMemorySnapshotRepository(useJson ? makeJson('snapshots.json') : undefined);
-  const audit: IAuditRepository = new InMemoryAuditRepository(useJson ? makeJson('audit.json') : undefined);
+  const users: IUserRepository = useSupabase
+    ? new SupabaseUserRepository(sql)
+    : new InMemoryUserRepository(useJson ? makeJson('users.json') : undefined);
+  const students: IStudentRepository = useSupabase
+    ? new SupabaseStudentRepository(sql)
+    : new InMemoryStudentRepository(useJson ? makeJson('students.json') : undefined);
+  const leaders: ILeaderRepository = useSupabase
+    ? new SupabaseLeaderRepository(sql)
+    : new InMemoryLeaderRepository(useJson ? makeJson('leaders.json') : undefined);
+  const connections: IConnectionRepository = useSupabase
+    ? new SupabaseConnectionRepository(sql)
+    : new InMemoryConnectionRepository(useJson ? makeJson('connections.json') : undefined);
+  const serviceSessions: IServiceSessionRepository = useSupabase
+    ? new SupabaseServiceSessionRepository(sql)
+    : new InMemoryServiceSessionRepository(useJson ? makeJson('service-sessions.json') : undefined);
+  const serviceAttendance: IServiceAttendanceRepository = useSupabase
+    ? new SupabaseServiceAttendanceRepository(sql)
+    : new InMemoryServiceAttendanceRepository(useJson ? makeJson('service-attendance.json') : undefined);
+  const lifegroups: ILifegroupRepository = useSupabase
+    ? new SupabaseLifegroupRepository(sql)
+    : new InMemoryLifegroupRepository(useJson ? makeJson('lifegroups.json') : undefined);
+  const lifegroupWeeks: ILifegroupWeekRepository = useSupabase
+    ? new SupabaseLifegroupWeekRepository(sql)
+    : new InMemoryLifegroupWeekRepository(useJson ? makeJson('lifegroup-weeks.json') : undefined);
+  const lifegroupAttendance: ILifegroupAttendanceRepository = useSupabase
+    ? new SupabaseLifegroupAttendanceRepository(sql)
+    : new InMemoryLifegroupAttendanceRepository(useJson ? makeJson('lifegroup-attendance.json') : undefined);
+  const imports: IImportRepository = useSupabase
+    ? new SupabaseImportRepository(sql)
+    : new InMemoryImportRepository(useJson ? makeJson('imports.json') : undefined);
+  const settings: ISettingsRepository = useSupabase
+    ? new SupabaseSettingsRepository(sql)
+    : new InMemorySettingsRepository(useJson ? makeJson('settings.json') : undefined);
+  const snapshots: ISnapshotRepository = useSupabase
+    ? new SupabaseSnapshotRepository(sql)
+    : new InMemorySnapshotRepository(useJson ? makeJson('snapshots.json') : undefined);
+  const audit: IAuditRepository = useSupabase
+    ? new SupabaseAuditRepository(sql)
+    : new InMemoryAuditRepository(useJson ? makeJson('audit.json') : undefined);
 
   const repos: Repositories = {
     users, students, leaders, connections,
