@@ -129,7 +129,55 @@ What to **avoid**: storing primary data in JSON files / localStorage as the syst
   dropdown shows service (uniq+avg/wk) + group (uniq); lifegroups tab shows uniq + avg %.
 - **Bottom nav** is now `position:fixed` (was floating up on short pages).
 
-## Remaining (next session) — see task #18
+## Session 3 (2026-06-14) — shipped
+
+**Term split (task #18.1).** `src/services/terms.ts` + `aggregates.ts` (pure,
+unit-tested): term boundaries = service-date gaps > `termGapDays`, Monday-bucketed
+so service Fridays and lifegroup Mondays share one boundary; only the last two
+terms kept; resilient across the calendar-year boundary. Both imports recompute
+BOTH streams from the authoritative service boundaries (group falls back to its
+own week gaps when no service data), so the split is order-independent; holiday-gap
+group weeks excluded. `import` is the sole writer of `prev*` (new-year already only
+wipes). Trends default to the current term.
+
+**Lifegroup stats (task #18.2/#19).** `GET /lifegroups/stats` →
+`src/services/lifegroup-stats.service.ts`: per lifegroup (unique, mean attendees
+over weeks it ran, weeks ran), per grade (unique + mean grade-individuals attending
+any lifegroup each week), per quad, overall — all current + previous term, plus a
+current-term weekly series. Role-scoped. SPA: Trends Lifegroups tab rebuilt as
+quad→grade→lifegroup (current + previous); Home gets a current-term-only version.
+
+**Trends.** Ministry Overview is now WHOLE-ministry for every login (`trends.ministry`
+gained `uniqueAttenders` + previous-term unique/avg). Both charts label each bar with
+the attendee count; Lifegroups tab gained a weekly chart. The "Improving/Declining"
+badge measures the trend WITHIN the current term (older vs newer half), not vs the
+previous term.
+
+**Student search (task #18.4).** Leaders/assistant-leaders hidden (name-matched
+against `/leaders`); typing updates only the results list so the caret no longer
+jumps.
+
+**Leaders & Connect / My Students.** Picker is top-anchored + pinned to the visible
+viewport (keyboard-safe; Done always visible), grouped Not assigned / Assigned to
+another leader / Assigned to this leader, all sorted by first name; assigned lists
+sorted by first name. Removed "Unconnected focus" and the per-leader target (now a
+plain allocated count). Filters scoped to login (grade→none, quad→grade-only,
+director/admin→grade+gender). Picker searches stay within the leader's gender.
+
+**RBAC.** `leader.service.list` now scopes a quad to its OWN gender + bracket (was
+leaking opposite-gender leaders). Audit conclusion: overview/trends/at-risk/students/
+lifegroup-stats all scope grade→grade, quad→grade+gender, director/admin→all;
+`connection.assign` allows grade cross-grade only when gender matches the leader.
+Note: grade logins are per-grade (one account per grade in the seed — no gender field
+on `Actor`), so they correctly see their whole grade. `/students/search` lacks grade
+scoping but is unused by the SPA.
+
+**Connection Audit.** Term split is beneficial (its prev-term trend + svcD/grpD
+deltas now have real data). Fixed two spots that used `gT>0` (group ran for them
+this term) where attendance was meant: stage "Attended a lifegroup this term" and
+the "In a lifegroup" KPI now require `gA>0`.
+
+## Remaining (earlier roadmap) — see task #18
 
 1. **This-term / previous-term split (BIGGEST).** Spec confirmed: term boundaries from
    service-date gaps > `termGapDays` (current + previous); same boundaries for groups;
