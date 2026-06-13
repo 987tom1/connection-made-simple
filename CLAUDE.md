@@ -59,6 +59,7 @@ Seed data only runs when `PERSISTENCE=memory`. Production uses `PERSISTENCE=supa
 | Overview | `GET /overview` |
 | At-risk | `GET /at-risk`, `POST /at-risk/recompute` |
 | Trends | `GET /trends` |
+| Lifegroup stats | `GET /lifegroups/stats` (per-lifegroup/grade/quad/overall, current + previous term + weekly series) |
 | Import | `POST /import/csv`, `GET /import/history` |
 | Settings | `GET/PATCH /settings` |
 | Admin | `POST /admin/reset`, `POST /admin/save-defaults`, `POST /admin/new-year`, `GET /admin/audit` |
@@ -75,6 +76,19 @@ Seed data only runs when `PERSISTENCE=memory`. Production uses `PERSISTENCE=supa
 
 There is always exactly one `admin` account. It cannot be deleted.
 
+**Scoping reality (don't assume from the table above):**
+- `Actor` has **no gender field**; the seed has **one login per grade** (`grade7`…`grade12`),
+  so a `grade` login sees its **whole grade (both genders)** — the "own gender" column is
+  aspirational, not implemented. Don't add gender scoping for `grade` without first adding
+  a gender field to `User`/`Actor`/token.
+- `quad` is scoped to its **gender + year bracket** across overview/trends/at-risk/students/
+  lifegroup-stats AND `leader.service.list` (the latter was leaking opposite-gender leaders;
+  now fixed). UI leader filters: `grade` → none, `quad` → grade-only (own bracket),
+  `director`/`admin` → grade + gender.
+- Connect exception: a `grade` login may connect a student from **another grade** only when
+  that student's gender matches the leader's (`connection.assign`); the picker also keeps
+  searches within the leader's gender.
+
 ## Quads
 
 Four quads group students by age bracket + gender:
@@ -84,6 +98,31 @@ Four quads group students by age bracket + gender:
 - `b1012` — Boys Year 10–12
 
 Quad is computed automatically from `grade + gender` via `computeQuad()` in enums.
+
+## Term model (this-term vs previous-term)
+
+Attendance is split into the **current** and **previous** term everywhere; "this term"
+is the default, previous is shown as a comparison.
+
+- **Boundaries** come from gaps between consecutive **service dates** > `termGapDays`
+  (default 14), Monday-bucketed so service Fridays and lifegroup Mondays land in the
+  same term. Only the last two terms are kept; resilient across the calendar-year
+  boundary (last year's T4 as previous + this year's T1 as current). Pure helpers:
+  `src/services/terms.ts` (`computeTerms`, `classifyDate`, `mondayOf`).
+- **Per-student aggregates** (`svc*`, `grp*`, `prev*` on `Student`) are computed **at
+  import time** by `src/services/aggregates.ts` (`computeStudentAggregates`). BOTH
+  imports (service and lifegroup) recompute BOTH streams from the authoritative
+  service boundaries (lifegroup falls back to its own week-gaps when no service data),
+  so the split is import-order-independent. Holiday-gap weeks classify to neither term
+  and are excluded. **Re-import is required** for these fields to reflect new logic —
+  trends/lifegroup-stats compute live and update immediately.
+- `import` is the **sole writer** of `prev*` (new-year rollover only wipes data).
+- `GET /trends` ministry block is **whole-ministry for every login** (a grade/quad
+  login still sees ministry-wide unique + average there); `byQuad`/`byGrade` stay
+  scoped. The "Improving/Declining" badge is the trend WITHIN the current term.
+- `GET /lifegroups/stats` (`lifegroup-stats.service.ts`) is the per-lifegroup /
+  grade / quad / overall source: unique attenders, mean individuals attending each
+  week the scope ran, weeks ran — current + previous term, role-scoped.
 
 ## Key design rules
 
@@ -141,7 +180,16 @@ CORS_ORIGINS=*
 
 **Cache-skip spinner** — render functions check `_allCached(...paths)` before showing the loading spinner; cached navigations render immediately.
 
-**Scroll reset** — `setApp()` calls `window.scrollTo(0, 0)` on every navigation.
+**Scroll handling** — the **window** is the scroller (`.pg` is not). `setApp()` resets
+to top only when navigating to a DIFFERENT page (`S.page !== _lastRenderedPage`) and
+**preserves** `window.scrollY` on same-page re-renders, so opening a dropdown doesn't
+jump to the top. Don't re-add per-page `.pg.scrollTop` save/restore — it's a no-op.
+
+**Shared display helpers** (defined near `quadChip`): `termRow(label, curA, curT, prevA,
+prevT)` renders "This term … · Last term …" (used on student search, My Students,
+at-risk); `isRising(s)` flags students whose svc/grp rate improved ≥5pts vs last term
+(at-risk "Rising" group); `fmtPhone`/`callPhone`/`phoneLink` format numbers (space
+after the 4th & 7th digit) and tap-to-call (confirm → `tel:`).
 
 ### Icon system
 
@@ -160,8 +208,12 @@ No emoji or Unicode symbol characters anywhere in the SPA — everything is SVG.
 
 ### Service worker (`public/sw.js`)
 
-- Cache name: `cms-v2` (bump on breaking changes to force eviction)
+- Cache name: `cms-v3` (bump on breaking changes to force eviction)
 - HTML shell (`/`): **network-first** — always fetches fresh HTML when online, falls back to cache offline
-- API routes: **network-only** (never cached)
+- API routes: **network-only** (never cached), matched by `API_RE`
 - Other assets: **cache-first**
 - SW registration in the HTML listens for `controllerchange` and reloads the page automatically when a new SW activates after a deploy — no manual cache clearing needed.
+- **GOTCHA:** every API resource MUST be listed in `API_RE`. A missing one (this bit
+  us with `lifegroups`) falls through to the cache-first asset path and can get the
+  SPA HTML cached under its URL, breaking JSON parsing (symptom: "… unavailable").
+  When adding a new top-level API route, add it to `API_RE` and bump the cache name.
