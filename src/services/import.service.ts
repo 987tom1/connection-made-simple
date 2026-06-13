@@ -215,7 +215,9 @@ export function makeImportService(
       // Map keyed by student ID — prevents duplicate-row errors when the CSV has the same
       // student appearing more than once (ON CONFLICT cannot affect same row twice)
       const studentsToSaveMap = new Map<string, Parameters<typeof studentRepo.save>[0]>();
-      const attendanceRecords: Parameters<typeof attendanceRepo.saveMany>[0] = [];
+      // Map keyed by "studentId:sessionId" — same student in multiple CSV rows could produce
+      // duplicate (student_id, session_id) pairs that break the bulk ON CONFLICT INSERT
+      const attendanceMap = new Map<string, Parameters<typeof attendanceRepo.saveMany>[0][number]>();
 
       // Process all rows in memory — compute final svcAttended/svcTotal/atRiskStatus here
       // so the final student save pass is eliminated entirely.
@@ -294,7 +296,7 @@ export function makeImportService(
           const val = (rawRow as Record<string, unknown>)[origKey];
           const attended = val === true || val === 'true' || val === '1' ||
             String(val).toLowerCase() === 'yes' || String(val) === 'Y';
-          attendanceRecords.push({ studentId, sessionId, attended });
+          attendanceMap.set(`${studentId}:${sessionId}`, { studentId, sessionId, attended });
           sessionTotal++;
           if (attended) sessionAttended++;
         }
@@ -314,6 +316,7 @@ export function makeImportService(
       }
 
       const studentsToSave = [...studentsToSaveMap.values()];
+      const attendanceRecords = [...attendanceMap.values()];
 
       // All writes — ordered to satisfy FKs, each step a single bulk SQL statement
       // 1. Import record first (service_sessions.import_id FK)

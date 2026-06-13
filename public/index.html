@@ -53,11 +53,10 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 
 /* Desktop nav — wraps to max 2 rows; labels hidden below 1024px (icon-only) */
 .desk-nav{display:none}
-@media(min-width:768px){.desk-nav{display:flex;flex-wrap:wrap;gap:4px;padding:4px 0 10px;max-height:72px;overflow:hidden}}
+@media(min-width:768px){.desk-nav{display:flex;flex-wrap:wrap;gap:4px;padding:4px 0 10px;max-height:120px;overflow:hidden}}
 .desk-nav a{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;color:rgba(255,255,255,.75);cursor:pointer;transition:all .15s;white-space:nowrap}
 .desk-nav a.on,.desk-nav a:hover{background:rgba(255,255,255,.2);color:#fff}
 .desk-nav .ic-n{width:16px;height:16px}
-@media(min-width:768px) and (max-width:1023px){.desk-nav .nav-lbl{display:none}.desk-nav a{padding:6px 10px}}
 
 /* Bottom nav */
 .bot-nav{display:flex;background:var(--paper-card);border-top:1px solid var(--line);padding:6px 0 calc(6px + var(--safe-b));position:sticky;bottom:0;z-index:100;box-shadow:0 -2px 8px rgba(18,35,59,.06)}
@@ -747,8 +746,8 @@ function renderLogin() {
         ${/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? `<p style="text-align:center;font-size:12px;color:var(--ink-faint);margin-top:14px">Install as an app — <a href="/install.html" style="color:var(--accent)">how to add to Home Screen</a></p>` : ''}
       </div>
     </div>`;
-  document.getElementById('lemail')?.addEventListener('keypress', e => { if (e.key==='Enter') doLogin(); });
-  document.getElementById('lpw')?.addEventListener('keypress', e => { if (e.key==='Enter') doLogin(); });
+  document.getElementById('lemail')?.addEventListener('keydown', e => { if (e.key==='Enter') doLogin(); });
+  document.getElementById('lpw')?.addEventListener('keydown', e => { if (e.key==='Enter') doLogin(); });
 }
 
 async function doLogin() {
