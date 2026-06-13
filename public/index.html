@@ -490,6 +490,11 @@ function _initShell() {
     <main id="page-main" class="pg"></main>
     <nav class="bot-nav">${mlinks}</nav>`;
   _shellReady = true;
+  _prefetch();
+}
+
+function _prefetch() {
+  ['/overview', '/students', '/leaders', '/connections', '/at-risk', '/trends', '/import/history'].forEach(p => API.get(p).catch(() => {}));
 }
 
 // ============================================================
@@ -603,6 +608,11 @@ const IC = {
   pie:      '<path d="M21.21 15.89A10 10 0 118 2.83"/><path d="M22 12A10 10 0 0012 2v10z"/>',
   group:    '<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>',
   deck:     '<rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',
+  chevr:    '<polyline points="9 18 15 12 9 6"/>',
+  chevd:    '<polyline points="18 9 12 15 6 9"/>',
+  arru:     '<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>',
+  arrd:     '<line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>',
+  arrr:     '<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>',
 };
 function icN(k){ return `<svg class="ic-n" viewBox="0 0 24 24">${IC[k]||''}</svg>`; }
 function icS(k){ return `<svg class="ic-s" viewBox="0 0 24 24">${IC[k]||''}</svg>`; }
@@ -1851,7 +1861,7 @@ async function renderAtRisk() {
       }
       body += `<div class="card" style="margin-bottom:12px">
         <div onclick="toggleArSection('${status}')" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:12px 16px;user-select:none">
-          <span id="ar-chev-${status}" style="font-size:12px">▶</span>
+          <span id="ar-chev-${status}" style="display:inline-flex;color:var(--ink-mid)">${icS('chevr')}</span>
           <strong>${labels[status]}</strong>
           <span class="badge" style="margin-left:auto">${items.length}</span>
         </div>
@@ -1872,7 +1882,7 @@ function toggleArSection(status) {
   if (!body || !chev) return;
   const open = body.style.display !== 'none';
   body.style.display = open ? 'none' : '';
-  chev.textContent = open ? '▶' : '▼';
+  chev.innerHTML = open ? icS('chevr') : icS('chevd');
 }
 
 function setArFilter(key, val) {
@@ -2105,9 +2115,9 @@ function hbarTr(label, pct, disp) {
   return `<div class="tbar-row"><div class="tbar-lbl">${label}</div><div class="tbar-track"><div class="tbar-fill ${pct<40?'crit':pct<70?'low':''}" style="width:${pct}%"></div></div><div class="tbar-val">${shown}</div></div>`;
 }
 function trendBadge(dir) {
-  if (dir === 'up') return '<span class="tr-up">↑ Improving</span>';
-  if (dir === 'down') return '<span class="tr-dn">↓ Declining</span>';
-  return '<span class="tr-st">→ Stable</span>';
+  if (dir === 'up') return `<span class="tr-up" style="display:inline-flex;align-items:center;gap:2px">${icS('arru')} Improving</span>`;
+  if (dir === 'down') return `<span class="tr-dn" style="display:inline-flex;align-items:center;gap:2px">${icS('arrd')} Declining</span>`;
+  return `<span class="tr-st" style="display:inline-flex;align-items:center;gap:2px">${icS('arrr')} Stable</span>`;
 }
 function trendDir(sessions) {
   const v = sessions.filter(s => s.tot > 0);
@@ -2135,9 +2145,9 @@ function grpBar(uniq, enrolled) {
 }
 // Compact trend arrow for at-risk prev-term comparison
 function trendArrow(dir) {
-  if (dir === 'up') return '<span style="color:var(--success);font-weight:700">↑</span>';
-  if (dir === 'down') return '<span style="color:var(--danger);font-weight:700">↓</span>';
-  return '<span style="color:var(--ink-faint)">→</span>';
+  if (dir === 'up') return `<span style="color:var(--success);display:inline-flex">${icS('arru')}</span>`;
+  if (dir === 'down') return `<span style="color:var(--danger);display:inline-flex">${icS('arrd')}</span>`;
+  return '';
 }
 
 async function renderTrends() {

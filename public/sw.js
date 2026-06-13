@@ -1,4 +1,4 @@
-const CACHE = 'cms-v1';
+const CACHE = 'cms-v2';
 const APP_SHELL = ['/'];
 
 // API paths that should never be served from cache
@@ -26,7 +26,21 @@ self.addEventListener('fetch', (e) => {
   // Network-only for API routes (never stale data)
   if (API_RE.test(url.pathname)) return;
 
-  // Cache-first for everything else (app shell, assets)
+  // Network-first for the HTML shell — always get the latest version when online
+  if (url.pathname === '/' || url.pathname === '/index.html') {
+    e.respondWith(
+      fetch(request).then((res) => {
+        if (res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE).then((c) => c.put(request, clone));
+        }
+        return res;
+      }).catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // Cache-first for all other assets (fonts, icons, etc.)
   e.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
