@@ -72,18 +72,24 @@ function recentTrend(sessions: SessionPoint[]): 'up' | 'down' | 'stable' {
   return 'stable';
 }
 
-// Flag "non-normal" weeks (holidays, camps, cancelled services) so they don't
-// drag down the average. A week is excluded only if its attendance falls below
-// thresholdPct% of the MEDIAN week. Using the median (not the mean) as the
-// reference means a few big or empty weeks don't move the bar, so genuine
-// low-but-normal weeks are kept — only near-empty weeks drop out.
+// Flag "non-normal" weeks (holidays, camps, future/empty columns) so they don't
+// drag down the average. A week is excluded if its attendance falls below
+// thresholdPct% of the MEDIAN of *non-empty* weeks.
+//
+// The reference is the median of sessions with attendance > 0 — NOT all
+// sessions. A full-year export typically contains many weeks with zero
+// attendance (future dates, term breaks); if those were included, the median
+// itself would be 0 and the threshold would never exclude anything, so the
+// empty weeks would crater the average. Anchoring on the typical *active* week
+// keeps genuine low-but-real weeks while dropping the dead ones.
 function markOutliers(points: { totalAttended: number }[], thresholdPct: number): boolean[] {
   if (points.length < 3) return points.map(() => false);
-  const sorted = points.map((p) => p.totalAttended).sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  const median = sorted.length % 2 === 0
-    ? (sorted[mid - 1]! + sorted[mid]!) / 2
-    : sorted[mid]!;
+  const active = points.map((p) => p.totalAttended).filter((v) => v > 0).sort((a, b) => a - b);
+  if (active.length < 3) return points.map(() => false);
+  const mid = Math.floor(active.length / 2);
+  const median = active.length % 2 === 0
+    ? (active[mid - 1]! + active[mid]!) / 2
+    : active[mid]!;
   const threshold = median * (thresholdPct / 100);
   return points.map((p) => p.totalAttended < threshold);
 }

@@ -200,6 +200,6 @@ export class SupabaseStudentRepository implements IStudentRepository {
   }
 
   async deleteAll(): Promise<void> {
-    await this.sql`delete from students`;
+    await this.sql`truncate table students cascade`;
   }
 }

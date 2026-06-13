@@ -190,7 +190,7 @@ export class SupabaseServiceSessionRepository implements IServiceSessionReposito
   }
 
   async deleteAll(): Promise<void> {
-    await this.sql`delete from service_sessions`;
+    await this.sql`truncate table service_sessions cascade`;
   }
 }
 
@@ -260,7 +260,7 @@ export class SupabaseServiceAttendanceRepository implements IServiceAttendanceRe
   }
 
   async deleteAll(): Promise<void> {
-    await this.sql`delete from service_attendance`;
+    await this.sql`truncate table service_attendance cascade`;
   }
 }
 
@@ -335,7 +335,7 @@ export class SupabaseLifegroupRepository implements ILifegroupRepository {
   }
 
   async deleteAll(): Promise<void> {
-    await this.sql`delete from lifegroups`;
+    await this.sql`truncate table lifegroups cascade`;
   }
 }
 
@@ -418,7 +418,7 @@ export class SupabaseLifegroupWeekRepository implements ILifegroupWeekRepository
   }
 
   async deleteAll(): Promise<void> {
-    await this.sql`delete from lifegroup_weeks`;
+    await this.sql`truncate table lifegroup_weeks cascade`;
   }
 }
 
@@ -481,7 +481,7 @@ export class SupabaseLifegroupAttendanceRepository implements ILifegroupAttendan
   }
 
   async deleteAll(): Promise<void> {
-    await this.sql`delete from lifegroup_attendance`;
+    await this.sql`truncate table lifegroup_attendance cascade`;
   }
 }
 
@@ -557,6 +557,6 @@ export class SupabaseImportRepository implements IImportRepository {
   }
 
   async deleteAll(): Promise<void> {
-    await this.sql`delete from import_records`;
+    await this.sql`truncate table import_records cascade`;
   }
 }

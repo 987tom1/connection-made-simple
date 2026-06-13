@@ -79,6 +79,6 @@ export class SupabaseLeaderRepository implements ILeaderRepository {
   }
 
   async deleteAll(): Promise<void> {
-    await this.sql`delete from leaders`;
+    await this.sql`truncate table leaders cascade`;
   }
 }
