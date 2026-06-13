@@ -2234,8 +2234,8 @@ async function renderTrends() {
     body += `<div class="sh">Ministry Overview</div><div class="card">`;
     body += `<div style="font-size:12px;color:var(--ink-mid);margin-bottom:8px">Attendance across all students this term</div>`;
     body += statCard(
-      [totalUniq, totalTot>0?Math.round(totalAtt/(Math.max(1,...students.filter(s=>s.svcTotal>0).map(s=>s.svcTotal))||1)):0, totalAvgSess],
-      ['Unique attenders', 'Avg/session', 'Avg sessions/student'],
+      [totalUniq, trends && trends.ministry ? Math.round(trends.ministry.averageAttendance) : 0],
+      ['Unique attenders', 'Avg students/week'],
       null
     );
     body += '</div>';
@@ -2257,16 +2257,16 @@ async function renderTrends() {
       const gr = byGrade.find(x => x.grade === u.grade);
       if (gr && gr.count) {
         body += `<div class="sh">Grade ${u.grade}</div><div class="card">`;
-        body += statCard([gr.uniq, gr.count>0?Math.round(gr.att/gr.count):0, gr.count>0?Math.round(gr.att/gr.count):0],
-          ['Unique attenders','Avg/session','Avg sessions/student'], null);
+        body += statCard([gr.uniq, _hGradeAvg(trends, u.grade)],
+          ['Unique attenders','Avg students/week'], null);
         body += '</div>';
       }
     } else if (u.role === 'quad') {
       const q = byQuad.find(x => x.quad === u.quad);
       if (q && q.count) {
         body += `<div class="sh">${q.label}</div><div class="card">`;
-        body += statCard([q.uniq, q.count>0?Math.round(q.att/q.count):0, q.count>0?Math.round(q.att/q.count):0],
-          ['Unique attenders','Avg/session','Avg sessions/student'], null);
+        body += statCard([q.uniq, _hQuadAvg(trends, u.quad)],
+          ['Unique attenders','Avg students/week'], null);
         body += '<div class="sh" style="margin-top:10px">By Grade</div><div class="tbar-wrap" style="margin-top:6px">';
         const grades = u.quad==='g79'||u.quad==='b79' ? [7,8,9] : [10,11,12];
         for (const gr of grades) {
@@ -2285,7 +2285,7 @@ async function renderTrends() {
         body += `<div style="display:flex;align-items:center;gap:8px;cursor:pointer" onclick="_trQuadOpen=${isQOpen?'null':`'${q.quad}'`};_trGradeOpen=null;renderTrends()">
           <span style="font-size:12px;transition:.2s;display:inline-block;transform:${isQOpen?'rotate(90deg)':'rotate(0deg)'}">›</span>
           <div style="flex:1;font-weight:700;font-size:14px">${q.label}</div>
-          <span style="font-size:12px;font-weight:700;color:var(--ink-mid)">${q.uniq} uniq · ${q.count>0?Math.round(q.att/q.count):0} avg</span>
+          <span style="font-size:12px;font-weight:700;color:var(--ink-mid)">${q.uniq} uniq · ${_hQuadAvg(trends, q.quad)} avg/wk</span>
         </div>`;
         if (isQOpen) {
           // Compact per-grade rows (no big stat tiles — those are kept for the
@@ -2294,10 +2294,13 @@ async function renderTrends() {
           for (const gr of grades) {
             const g = byGrade.find(x=>x.grade===gr);
             if (!g||!g.count) continue;
-            body += `<div style="display:flex;align-items:center;gap:8px;border-top:1px solid var(--paper-dark);padding:7px 0 1px">
-                <div style="flex:1;font-size:13px;font-weight:600;padding-left:20px">Year ${gr}</div>
-                <span style="font-size:13px;font-weight:700">${g.uniq}</span><span style="font-size:11px;color:var(--ink-faint);margin:0 8px 0 3px">uniq</span>
-                <span style="font-size:13px;font-weight:700">${g.count>0?Math.round(g.att/g.count):0}</span><span style="font-size:11px;color:var(--ink-faint);margin-left:3px">avg</span>
+            const grpUniq = students.filter(s=>s.grade===gr && s.grpAttended>0).length;
+            body += `<div style="border-top:1px solid var(--paper-dark);padding:7px 0 5px">
+                <div style="font-size:13px;font-weight:600;padding-left:20px;margin-bottom:2px">Year ${gr}</div>
+                <div style="display:flex;gap:16px;padding-left:20px;font-size:12px;color:var(--ink-mid);flex-wrap:wrap">
+                  <span>Service: <b style="color:var(--ink)">${g.uniq}</b> uniq · <b style="color:var(--ink)">${_hGradeAvg(trends, gr)}</b> avg/wk</span>
+                  <span>Group: <b style="color:var(--ink)">${grpUniq}</b> uniq</span>
+                </div>
               </div>`;
           }
         }
@@ -2306,17 +2309,17 @@ async function renderTrends() {
     }
 
   } else {
-    // Lifegroups tab
-    const grpStudents = students.filter(s => s.grpTotal > 0);
-    const totGrpEnrolled = grpStudents.length;
-    const totGrpUniq = grpStudents.filter(s=>s.grpAttended>0).length;
-    const totGrpAtt = grpStudents.reduce((s,x)=>s+x.grpAttended,0);
-    const totGrpAvg = totGrpEnrolled ? Math.round(totGrpAtt/totGrpEnrolled) : 0;
+    // Lifegroups tab. A student is "in" a group only if they attended >=1 week,
+    // so we never show a roster/"enrolled" size — only attendance.
+    const grpAttenders = students.filter(s => s.grpAttended > 0);
+    const totGrpUniq = grpAttenders.length;
+    const totGrpAtt = grpAttenders.reduce((s,x)=>s+x.grpAttended,0);
+    const totGrpTot = grpAttenders.reduce((s,x)=>s+x.grpTotal,0);
+    const totGrpRate = totGrpTot > 0 ? Math.round(totGrpAtt/totGrpTot*100) : 0;
 
     body += `<div class="sh">Overview</div><div class="card">`;
-    body += `<div style="font-size:12px;color:var(--ink-mid);margin-bottom:8px">${totGrpEnrolled} enrolled across lifegroups</div>`;
-    body += statCard([totGrpUniq, totGrpAvg], ['Unique attenders','Avg sessions/student'], null);
-    body += grpBar(totGrpUniq, totGrpEnrolled);
+    body += `<div style="font-size:12px;color:var(--ink-mid);margin-bottom:8px">Lifegroup attendance this term</div>`;
+    body += statCard([totGrpUniq, totGrpRate + '%'], ['Unique attenders','Avg attendance'], null);
     body += '</div>';
 
     const lgGrades = u.role==='grade' ? [u.grade]
@@ -2325,27 +2328,17 @@ async function renderTrends() {
 
     if (u.role !== 'grade') body += `<div class="sh">By Grade</div>`;
     for (const gr of lgGrades) {
-      const grSc = students.filter(s => s.grade === gr && s.grpTotal > 0);
+      const grSc = students.filter(s => s.grade === gr && s.grpAttended > 0);
       if (!grSc.length) continue;
-      const grUniq = grSc.filter(s=>s.grpAttended>0).length;
+      const grUniq = grSc.length;
       const grAtt = grSc.reduce((s,x)=>s+x.grpAttended,0);
-      const grAvg = grSc.length ? Math.round(grAtt/grSc.length) : 0;
-      const isOpen = _trGradeOpen === gr;
-      body += `<div class="card" style="margin-bottom:8px">`;
-      if (u.role !== 'grade') {
-        body += `<div style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:4px" onclick="_trGradeOpen=${isOpen?'null':gr};renderTrends()">
-          <span style="font-size:12px;display:inline-block;transform:${isOpen?'rotate(90deg)':'rotate(0deg)'}">›</span>
-          <span style="font-size:13px;font-weight:700;flex:1">Year ${gr}</span>
-          <span style="font-size:11px;color:var(--ink-mid)">${grSc.length} enrolled</span>
-        </div>`;
-      } else {
-        body += `<div style="font-size:13px;font-weight:700;margin-bottom:6px">Grade ${gr} Lifegroups</div>`;
-      }
-      body += statCard([grUniq, grAvg], ['Unique attenders','Avg sessions/student'], null);
-      if (!isOpen && u.role !== 'grade') { body += '</div>'; continue; }
-      // Show a summary breadth bar: unique/enrolled
-      body += grpBar(grUniq, grSc.length);
-      body += '</div>';
+      const grTot = grSc.reduce((s,x)=>s+x.grpTotal,0);
+      const grRate = grTot > 0 ? Math.round(grAtt/grTot*100) : 0;
+      body += `<div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:8px">
+        <span style="font-size:13px;font-weight:700;flex:1">${u.role==='grade'?'Grade '+gr+' Lifegroups':'Year '+gr}</span>
+        <span style="font-size:13px;font-weight:700">${grUniq}</span><span style="font-size:11px;color:var(--ink-faint);margin:0 8px 0 3px">attenders</span>
+        <span style="font-size:13px;font-weight:700">${grRate}%</span><span style="font-size:11px;color:var(--ink-faint);margin-left:3px">avg</span>
+      </div>`;
     }
   }
 
