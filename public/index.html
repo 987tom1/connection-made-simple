@@ -3398,7 +3398,7 @@ function confirmDelUser(id, name) {
 // Same module contract: remove by deleting this block, the CA MODULE CSS block, and every /*CA-HOOK*/ line.
 // Data comes from GET /students + /trends + /settings (async adapter); uploads stay in localStorage.
 const CA=(()=>{
-const KEY='ca_audit_v3'; // v3: + flows upload (people-flow follow-up export) — matches the demo's versioning
+const KEY='ca_audit_v4'; // v4: audit-specific uploads start EMPTY (no demo seed); bump evicts old seeded state
 let st=null,warnOff=false,mdl=null,D=null; // D = {students,trends,settings} cache; st.uploads has team/connect/decision/flows
 const PF={q:'',stage:'',quad:'',dec:false,cap:60};
 let GF='',FQ=false;
@@ -3436,56 +3436,24 @@ function regR(){const s=D.settings||{};return(s.regRateNumerator||3)/(s.regRateD
 
 // ---------- store ----------
 function save(){try{localStorage.setItem(KEY,JSON.stringify(st));}catch{}}
+// Audit-specific uploads (team/connect/decision/flows) start EMPTY — the user
+// uploads real CSVs. The funnel/lifegroup views still render from the live
+// platform roster (load()); only the uploaded overlays are blank until provided.
+function emptyUploads(){
+  const now=new Date().toISOString();
+  const mk=()=>({rows:[],at:now,fn:'(none)',src:'empty'});
+  return{team:mk(),connect:mk(),decision:mk(),flows:mk()};
+}
 function restore(){
   if(st)return;
-  try{const r=localStorage.getItem(KEY);if(r){const d=JSON.parse(r);if(d&&d.v===3&&d.uploads&&d.uploads.team&&d.uploads.connect&&d.uploads.decision&&d.uploads.flows){st=d;return;}}}catch{}
-  st={v:3,uploads:seedRows()};save();
+  try{const r=localStorage.getItem(KEY);if(r){const d=JSON.parse(r);if(d&&d.v===4&&d.uploads&&d.uploads.team&&d.uploads.connect&&d.uploads.decision&&d.uploads.flows){st=d;return;}}}catch{}
+  st={v:4,uploads:emptyUploads()};save();
 }
 function reset(){try{localStorage.removeItem(KEY);}catch{}st=null;mdl=null;D=null;warnOff=false;}
 function seedOn(){restore();return['team','connect','decision','flows'].some(k=>st.uploads[k].src==='seed');}
 function stale(){restore();return['team','connect','decision','flows'].some(k=>st.uploads[k].src==='seed'||(Date.now()-Date.parse(st.uploads[k].at))>30*864e5);}
 
-// ---------- seed (deterministic from the live roster; requires load() first) ----------
-function seedRows(){
-  const now=new Date().toISOString();const SD=sessDates();const roster=(D&&D.students)||[];
-  const team=roster.filter(s=>(s.grade||0)>=10).sort((a,b)=>(b.sA+b.gA)-(a.sA+a.gA)||(a.id<b.id?-1:1)).slice(0,58).map(s=>({name:s.fn+' '+s.ln,date:null}));
-  const connect=[];let decision=[];
-  for(const s of roster){
-    const h=h32(s.id);
-    if(h%7===0)connect.push({name:s.fn+' '+s.ln,date:SD[h%SD.length]});
-    if(s.sA>=3&&s.sA<=7&&h%13===0)decision.push({name:s.fn+' '+s.ln,date:SD[(h>>>3)%SD.length]});
-  }
-  CA_NAMES.forEach((n,i)=>connect.push({name:n,date:SD[(i*3)%SD.length]}));
-  decision=decision.slice(0,20);
-  CA_NAMES.slice(0,5).forEach((n,i)=>decision.push({name:n,date:SD[(i*2+1)%SD.length]}));
-  const mkU=rows=>({rows,at:now,fn:'(demo seed)',src:'seed'});
-  return{team:mkU(team),connect:mkU(connect),decision:mkU(decision),flows:mkU(seedFlows())};
-}
-// People-flow seed: 10 leaders × 2 terms (T1 + T2 2026) × 10–15 completed steps each,
-// with per-leader average overdue spread deterministically from 0 up to ~25 days.
-function seedFlows(){
-  const ADMINS=['Sarah Mitchell','Amy Peterson','James Walker','Naomi Nara','David Chen','Grace Holloway','Ethan Brooks','Priya Sharma','Marcus Reid','Hannah Kelly'];
-  const SLA={2:7,3:7,4:14};
-  const anchors=[Date.parse('2026-01-05'),Date.parse('2026-04-06')]; // T1, T2 2026 — completion stays inside the quarter
-  const rows=[];
-  ADMINS.forEach((admin,ai)=>{
-    const targetOd=Math.round(ai*25/(ADMINS.length-1));
-    anchors.forEach((a0,ti)=>{
-      const n=10+((ai*3+ti*5)%6); // 10..15 steps this term
-      for(let i=0;i<n;i++){
-        const h=h32(admin+'·'+ti+'·'+i);
-        const stp=2+(h%3);
-        const od=targetOd===0?0:Math.max(0,targetOd+((h>>>4)%7)-3);
-        const days=od>0?SLA[stp]+od:(h>>>2)%(SLA[stp]+1);
-        const comp=a0+((h>>>3)%80)*864e5;
-        const entered=new Date(comp-days*864e5).toISOString().slice(0,10);
-        const person=CA_NAMES[(ai*7+ti*11+i*3)%CA_NAMES.length].split(' ').reverse().join(', ');
-        rows.push({person,step:stp,status:'Completed',entered,days,admin});
-      }
-    });
-  });
-  return rows;
-}
+// (Demo seed removed — audit uploads start empty; see emptyUploads.)
 
 // ---------- CSV parsing (reuses core splitCSVLine) ----------
 function isoDate(d){
@@ -3756,13 +3724,12 @@ function rFunnel(){
   b+='<div class="card" style="background:#fff5f5;border-left:3px solid var(--ca-rose)"><div style="font-size:.66rem;font-weight:800;color:#b91c1c;text-transform:uppercase;letter-spacing:.05em">Biggest leak</div><div style="font-size:.78rem;margin-top:3px">'+R[leak].lb+' → '+R[leak+1].lb+' loses <b>'+lost+' people</b>.'+(worst?' Largest cluster: '+(QLBL[worst[0]]||worst[0])+' ('+worst[1]+').':'')+'</div></div>';
   b+='<button class="btn btn-secondary btn-full" onclick="CA.fquad()">'+(FQ?'Hide quad funnels ▴':'View funnel per quad ▾')+'</button>';
   if(FQ){
-    const RAMP=cols.map(c=>c[1]);
     for(const q of Object.keys(QLBL)){
       const qp=m.people.filter(p=>p.s&&p.s.quad===q);
       const qr=R.map(r=>({lb:r.lb,v:qp.filter(p=>p.stage>=r.n).length}));
-      const qmax=qr[0].v||1;
       b+='<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px"><span class="chip quad-'+q+'">'+(QLBL[q]||q)+'</span><span style="font-size:.62rem;color:var(--ca-muted)">'+qr[0].v+' people</span></div>';
-      b+=qr.map((r,i)=>'<div class="ca-lrow"><div class="ca-lname">'+r.lb+'</div><div class="ca-lbar"><div class="ca-lfill" style="width:'+Math.max(8,Math.round(r.v/qmax*100))+'%;background:'+RAMP[i]+'">'+r.v+'</div></div></div>').join('');
+      // Centered tapered funnel (same style as the overall funnel above).
+      b+='<div class="ca-fw">'+qr.map((r,i)=>{const w=Math.round(92-(92-30)*(i/(qr.length-1)));return '<div class="ca-fseg" style="width:'+w+'%;background:linear-gradient(180deg,'+cols[i][0]+','+cols[i][1]+')"><div class="ca-fv">'+r.v+'</div><div class="ca-fn">'+r.lb+'</div></div>';}).join('')+'</div>';
       if(qr[0].v>0){
         const qcv=[];for(let i=1;i<qr.length;i++)qcv.push(qr[i-1].v?Math.round(qr[i].v/qr[i-1].v*100):0);
         const ql=qcv.indexOf(Math.min(...qcv));
