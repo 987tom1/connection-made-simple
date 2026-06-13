@@ -240,6 +240,11 @@ export class InMemoryServiceAttendanceRepository
     this.store = this.store.filter((r) => !r.sessionId.startsWith(importId));
     await this.persistence.write(this.store);
   }
+
+  async deleteAll(): Promise<void> {
+    this.store = [];
+    await this.persistence.write(this.store);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -322,6 +327,11 @@ export class InMemoryLifegroupAttendanceRepository
     this.store = [];
     await this.persistence.write(this.store);
   }
+
+  async deleteAll(): Promise<void> {
+    this.store = [];
+    await this.persistence.write(this.store);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -376,7 +386,7 @@ export class InMemorySettingsRepository
       regRateDenominator: 4,
       riskRateNumerator: 1,
       riskRateDenominator: 2,
-      validThresholdPct: 50,
+      validThresholdPct: 25,
       serviceName: 'Sunday Service',
       lifegroupName: 'Lifegroup',
       connectionLockDate: null,

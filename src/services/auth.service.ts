@@ -18,13 +18,17 @@ if (process.env['NODE_ENV'] === 'production' && SESSION_SECRET === INSECURE_FALL
   );
 }
 
-function signSession(userId: string, expiresAt: number): string {
-  const payload = Buffer.from(JSON.stringify({ userId, expiresAt })).toString('base64url');
+// The signed token carries the full actor so authenticated requests don't need
+// a DB lookup to resolve the caller — the HMAC guarantees it wasn't tampered
+// with. (Trade-off: a role/status change only takes effect on the user's next
+// login, within the 12h token TTL.)
+function signSession(actor: Actor, expiresAt: number): string {
+  const payload = Buffer.from(JSON.stringify({ userId: actor.id, expiresAt, actor })).toString('base64url');
   const sig = createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
   return `${payload}.${sig}`;
 }
 
-function parseSession(token: string): { userId: string; expiresAt: number } | null {
+function parseSession(token: string): { userId: string; expiresAt: number; actor?: Actor } | null {
   const dot = token.lastIndexOf('.');
   if (dot === -1) return null;
   const payload = token.slice(0, dot);
@@ -34,7 +38,7 @@ function parseSession(token: string): { userId: string; expiresAt: number } | nu
     const a = Buffer.from(sig, 'base64url');
     const b = Buffer.from(expected, 'base64url');
     if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
-    return JSON.parse(Buffer.from(payload, 'base64url').toString()) as { userId: string; expiresAt: number };
+    return JSON.parse(Buffer.from(payload, 'base64url').toString()) as { userId: string; expiresAt: number; actor?: Actor };
   } catch {
     return null;
   }
@@ -81,7 +85,7 @@ export function makeAuthService(users: IUserRepository): AuthService {
         await users.save({ ...user, passwordHash: newHash, updatedAt: new Date().toISOString() });
       }
 
-      const token = signSession(user.id, Date.now() + TOKEN_TTL_MS);
+      const token = signSession(toActor(user), Date.now() + TOKEN_TTL_MS);
       return { token, user: toSafeUser(user) };
     },
 
@@ -89,6 +93,9 @@ export function makeAuthService(users: IUserRepository): AuthService {
       const session = parseSession(token);
       if (!session) return null;
       if (Date.now() > session.expiresAt) return null;
+      // Trusted actor embedded in the signed token — no DB round-trip needed.
+      if (session.actor) return session.actor;
+      // Legacy token without an embedded actor: fall back to a lookup.
       const user = await users.findById(session.userId);
       if (!user || user.status !== 'active') return null;
       return toActor(user);

@@ -4,6 +4,11 @@ import type {
   IStudentRepository,
   ILeaderRepository,
   IConnectionRepository,
+  IServiceSessionRepository,
+  IServiceAttendanceRepository,
+  ILifegroupRepository,
+  ILifegroupWeekRepository,
+  ILifegroupAttendanceRepository,
   IImportRepository,
   ISnapshotRepository,
   IAuditRepository,
@@ -47,22 +52,36 @@ export function makeAdminService(
   students: IStudentRepository,
   leaders: ILeaderRepository,
   connections: IConnectionRepository,
+  serviceSessions: IServiceSessionRepository,
+  serviceAttendance: IServiceAttendanceRepository,
+  lifegroups: ILifegroupRepository,
+  lifegroupWeeks: ILifegroupWeekRepository,
+  lifegroupAttendance: ILifegroupAttendanceRepository,
   imports: IImportRepository,
   snapshots: ISnapshotRepository,
   audit: IAuditRepository,
 ): AdminService {
+  // Wipe all attendance/connection data in FK-safe order (children before
+  // parents). Each call is a single bulk DELETE, so this stays well within the
+  // serverless function budget regardless of dataset size. Optionally also
+  // clears leaders (full reset) vs. retaining them (new-year rollover).
+  async function wipeData(opts: { includeLeaders: boolean }): Promise<void> {
+    await connections.deleteAll();
+    await serviceAttendance.deleteAll();
+    await lifegroupAttendance.deleteAll();
+    await serviceSessions.deleteAll();
+    await lifegroupWeeks.deleteAll();
+    await lifegroups.deleteAll();
+    await imports.deleteAll();
+    await students.deleteAll();
+    if (opts.includeLeaders) await leaders.deleteAll();
+  }
+
   return {
     async reset(actor) {
       assertCan(actor, 'admin:manage');
-      const all = await students.findAll();
-      for (const s of all) await students.delete(s.id);
-      const allLeaders = await leaders.findAll();
-      for (const l of allLeaders) await leaders.delete(l.id);
-      const allConns = await connections.findAll();
-      for (const a of allConns) await connections.delete(a.id);
-      const allImports = await imports.findAll();
-      for (const i of allImports) await imports.delete(i.id);
-      await writeAudit(audit, actor, 'reset', 'Full data reset — students, leaders, connections and imports cleared');
+      await wipeData({ includeLeaders: true });
+      await writeAudit(audit, actor, 'reset', 'Full data reset — students, leaders, connections, services and lifegroup data cleared');
     },
 
     async saveDefaults(actor) {
@@ -83,37 +102,11 @@ export function makeAdminService(
 
     async newYear(actor) {
       assertCan(actor, 'admin:manage');
-      const now = new Date().toISOString();
-      const all = await students.findAll();
-      const studentCount = all.length;
-
-      // Snapshot current-term attendance into prev* fields, then zero current-term stats.
-      // Students are retained so the next import can update them and the at-risk screen
-      // can show the decline trend (current term vs previous term).
-      for (const s of all) {
-        await students.save({
-          ...s,
-          prevSvcAttended: s.svcAttended,
-          prevSvcTotal: s.svcTotal,
-          prevGrpAttended: s.grpAttended,
-          prevGrpTotal: s.grpTotal,
-          svcAttended: 0,
-          svcTotal: 0,
-          grpAttended: 0,
-          grpTotal: 0,
-          grpMetWeeks: 0,
-          atRiskStatus: 'new',
-          updatedAt: now,
-        });
-      }
-
-      // Clear connections and import history — leaders and accounts are kept.
-      const allConns = await connections.findAll();
-      for (const a of allConns) await connections.delete(a.id);
-      const allImports = await imports.findAll();
-      for (const i of allImports) await imports.delete(i.id);
-
-      await writeAudit(audit, actor, 'new-year', `New year started — ${studentCount} students retained with previous-term snapshot, all connections cleared`);
+      // Fresh start for a new year: remove students, connections, service and
+      // lifegroup data. Leaders and accounts are retained (use Save Defaults
+      // first if you want to snapshot them).
+      await wipeData({ includeLeaders: false });
+      await writeAudit(audit, actor, 'new-year', 'New year started — students, connections, services and lifegroup data cleared; leaders and accounts retained');
     },
 
     async getAuditLog(actor, limit = 20) {

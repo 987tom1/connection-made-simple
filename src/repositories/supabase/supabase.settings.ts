@@ -61,7 +61,7 @@ const DEFAULT_SETTINGS: Omit<AppSettings, 'id' | 'updatedAt'> = {
   regRateDenominator: 4,
   riskRateNumerator: 1,
   riskRateDenominator: 2,
-  validThresholdPct: 50,
+  validThresholdPct: 25,
   serviceName: 'Sunday Service',
   lifegroupName: 'Lifegroup',
   connectionLockDate: null,

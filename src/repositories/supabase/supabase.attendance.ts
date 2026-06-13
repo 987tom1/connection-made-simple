@@ -15,6 +15,7 @@ import type {
   LifegroupAttendance,
   ImportRecord,
 } from '../../core/entities/attendance';
+import { chunk } from './bulk';
 
 // ---------------------------------------------------------------------------
 // Mappers
@@ -156,9 +157,10 @@ export class SupabaseServiceSessionRepository implements IServiceSessionReposito
 
   async saveMany(sessions: ServiceSession[]): Promise<void> {
     if (sessions.length === 0) return;
+    for (const batch of chunk(sessions)) {
     await this.sql`
       insert into service_sessions ${this.sql(
-        sessions.map((s) => ({
+        batch.map((s) => ({
           id:               s.id,
           import_id:        s.importId,
           session_date:     s.sessionDate,
@@ -179,11 +181,16 @@ export class SupabaseServiceSessionRepository implements IServiceSessionReposito
         total_attendance = excluded.total_attendance,
         sort_order       = excluded.sort_order
     `;
+    }
   }
 
   async delete(id: string): Promise<boolean> {
     const rows = await this.sql`delete from service_sessions where id = ${id} returning id`;
     return rows.length > 0;
+  }
+
+  async deleteAll(): Promise<void> {
+    await this.sql`delete from service_sessions`;
   }
 }
 
@@ -228,17 +235,19 @@ export class SupabaseServiceAttendanceRepository implements IServiceAttendanceRe
 
   async saveMany(records: ServiceAttendance[]): Promise<void> {
     if (records.length === 0) return;
-    await this.sql`
-      insert into service_attendance ${this.sql(
-        records.map((r) => ({
-          student_id: r.studentId,
-          session_id: r.sessionId,
-          attended: r.attended,
-        })),
-      )}
-      on conflict (student_id, session_id) do update set
-        attended = excluded.attended
-    `;
+    for (const batch of chunk(records)) {
+      await this.sql`
+        insert into service_attendance ${this.sql(
+          batch.map((r) => ({
+            student_id: r.studentId,
+            session_id: r.sessionId,
+            attended: r.attended,
+          })),
+        )}
+        on conflict (student_id, session_id) do update set
+          attended = excluded.attended
+      `;
+    }
   }
 
   async deleteByImport(importId: string): Promise<void> {
@@ -248,6 +257,10 @@ export class SupabaseServiceAttendanceRepository implements IServiceAttendanceRe
         select id from service_sessions where import_id = ${importId}
       )
     `;
+  }
+
+  async deleteAll(): Promise<void> {
+    await this.sql`delete from service_attendance`;
   }
 }
 
@@ -295,9 +308,10 @@ export class SupabaseLifegroupRepository implements ILifegroupRepository {
 
   async saveMany(lifegroups: Lifegroup[]): Promise<void> {
     if (lifegroups.length === 0) return;
+    for (const batch of chunk(lifegroups)) {
     await this.sql`
       insert into lifegroups ${this.sql(
-        lifegroups.map((g) => ({
+        batch.map((g) => ({
           id:         g.id,
           full_name:  g.fullName,
           short_name: g.shortName,
@@ -312,11 +326,16 @@ export class SupabaseLifegroupRepository implements ILifegroupRepository {
         grade      = excluded.grade,
         gender     = excluded.gender
     `;
+    }
   }
 
   async delete(id: string): Promise<boolean> {
     const rows = await this.sql`delete from lifegroups where id = ${id} returning id`;
     return rows.length > 0;
+  }
+
+  async deleteAll(): Promise<void> {
+    await this.sql`delete from lifegroups`;
   }
 }
 
@@ -371,9 +390,10 @@ export class SupabaseLifegroupWeekRepository implements ILifegroupWeekRepository
 
   async saveMany(weeks: LifegroupWeek[]): Promise<void> {
     if (weeks.length === 0) return;
+    for (const batch of chunk(weeks)) {
     await this.sql`
       insert into lifegroup_weeks ${this.sql(
-        weeks.map((w) => ({
+        batch.map((w) => ({
           id:        w.id,
           import_id: w.importId,
           week_num:  w.weekNum,
@@ -389,11 +409,16 @@ export class SupabaseLifegroupWeekRepository implements ILifegroupWeekRepository
         week_start = excluded.week_start,
         week_end   = excluded.week_end
     `;
+    }
   }
 
   async delete(id: string): Promise<boolean> {
     const rows = await this.sql`delete from lifegroup_weeks where id = ${id} returning id`;
     return rows.length > 0;
+  }
+
+  async deleteAll(): Promise<void> {
+    await this.sql`delete from lifegroup_weeks`;
   }
 }
 
@@ -427,21 +452,23 @@ export class SupabaseLifegroupAttendanceRepository implements ILifegroupAttendan
 
   async saveMany(records: LifegroupAttendance[]): Promise<void> {
     if (records.length === 0) return;
-    await this.sql`
-      insert into lifegroup_attendance ${this.sql(
-        records.map((r) => ({
-          student_id:   r.studentId,
-          week_id:      r.weekId,
-          lifegroup_id: r.lifegroupId,
-          group_met:    r.groupMet,
-          attended:     r.attended,
-        })),
-      )}
-      on conflict (student_id, week_id) do update set
-        lifegroup_id = excluded.lifegroup_id,
-        group_met    = excluded.group_met,
-        attended     = excluded.attended
-    `;
+    for (const batch of chunk(records)) {
+      await this.sql`
+        insert into lifegroup_attendance ${this.sql(
+          batch.map((r) => ({
+            student_id:   r.studentId,
+            week_id:      r.weekId,
+            lifegroup_id: r.lifegroupId,
+            group_met:    r.groupMet,
+            attended:     r.attended,
+          })),
+        )}
+        on conflict (student_id, week_id) do update set
+          lifegroup_id = excluded.lifegroup_id,
+          group_met    = excluded.group_met,
+          attended     = excluded.attended
+      `;
+    }
   }
 
   async deleteByImport(importId: string): Promise<void> {
@@ -451,6 +478,10 @@ export class SupabaseLifegroupAttendanceRepository implements ILifegroupAttendan
         select id from lifegroup_weeks where import_id = ${importId}
       )
     `;
+  }
+
+  async deleteAll(): Promise<void> {
+    await this.sql`delete from lifegroup_attendance`;
   }
 }
 
@@ -523,5 +554,9 @@ export class SupabaseImportRepository implements IImportRepository {
   async delete(id: string): Promise<boolean> {
     const rows = await this.sql`delete from import_records where id = ${id} returning id`;
     return rows.length > 0;
+  }
+
+  async deleteAll(): Promise<void> {
+    await this.sql`delete from import_records`;
   }
 }

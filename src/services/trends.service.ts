@@ -72,11 +72,19 @@ function recentTrend(sessions: SessionPoint[]): 'up' | 'down' | 'stable' {
   return 'stable';
 }
 
+// Flag "non-normal" weeks (holidays, camps, cancelled services) so they don't
+// drag down the average. A week is excluded only if its attendance falls below
+// thresholdPct% of the MEDIAN week. Using the median (not the mean) as the
+// reference means a few big or empty weeks don't move the bar, so genuine
+// low-but-normal weeks are kept — only near-empty weeks drop out.
 function markOutliers(points: { totalAttended: number }[], thresholdPct: number): boolean[] {
   if (points.length < 3) return points.map(() => false);
-  // Compute rolling average of all points, then flag those below threshold% of the average
-  const avg = points.reduce((sum, p) => sum + p.totalAttended, 0) / points.length;
-  const threshold = avg * (thresholdPct / 100);
+  const sorted = points.map((p) => p.totalAttended).sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const median = sorted.length % 2 === 0
+    ? (sorted[mid - 1]! + sorted[mid]!) / 2
+    : sorted[mid]!;
+  const threshold = median * (thresholdPct / 100);
   return points.map((p) => p.totalAttended < threshold);
 }
 

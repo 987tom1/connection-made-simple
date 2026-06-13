@@ -24,11 +24,13 @@ export interface IStudentRepository extends IRepository<Student> {
   findByGender(gender: string): Promise<Student[]>;
   search(query: string): Promise<Student[]>;
   saveMany(students: Student[]): Promise<void>;
+  deleteAll(): Promise<void>;
 }
 
 export interface ILeaderRepository extends IRepository<Leader> {
   findByGrade(grade: number): Promise<Leader[]>;
   findActive(): Promise<Leader[]>;
+  deleteAll(): Promise<void>;
 }
 
 export interface IConnectionRepository extends IRepository<Connection> {
@@ -36,12 +38,14 @@ export interface IConnectionRepository extends IRepository<Connection> {
   findByLeader(leaderId: string): Promise<Connection[]>;
   findByStudentAndLeader(studentId: string, leaderId: string): Promise<Connection | null>;
   deleteByStudentAndLeader(studentId: string, leaderId: string): Promise<boolean>;
+  deleteAll(): Promise<void>;
 }
 
 export interface IServiceSessionRepository extends IRepository<ServiceSession> {
   findByImport(importId: string): Promise<ServiceSession[]>;
   findValid(): Promise<ServiceSession[]>;
   saveMany(sessions: ServiceSession[]): Promise<void>;
+  deleteAll(): Promise<void>;
 }
 
 export interface IServiceAttendanceRepository {
@@ -51,16 +55,19 @@ export interface IServiceAttendanceRepository {
   save(record: ServiceAttendance): Promise<ServiceAttendance>;
   saveMany(records: ServiceAttendance[]): Promise<void>;
   deleteByImport(importId: string): Promise<void>;
+  deleteAll(): Promise<void>;
   findAll(): Promise<ServiceAttendance[]>;
 }
 
 export interface ILifegroupRepository extends IRepository<Lifegroup> {
   saveMany(lifegroups: Lifegroup[]): Promise<void>;
+  deleteAll(): Promise<void>;
 }
 
 export interface ILifegroupWeekRepository extends IRepository<LifegroupWeek> {
   findByImport(importId: string): Promise<LifegroupWeek[]>;
   saveMany(weeks: LifegroupWeek[]): Promise<void>;
+  deleteAll(): Promise<void>;
 }
 
 export interface ILifegroupAttendanceRepository {
@@ -69,11 +76,13 @@ export interface ILifegroupAttendanceRepository {
   findByWeek(weekId: string): Promise<LifegroupAttendance[]>;
   saveMany(records: LifegroupAttendance[]): Promise<void>;
   deleteByImport(importId: string): Promise<void>;
+  deleteAll(): Promise<void>;
   findAll(): Promise<LifegroupAttendance[]>;
 }
 
 export interface IImportRepository extends IRepository<ImportRecord> {
   findByType(type: 'service' | 'lifegroup'): Promise<ImportRecord[]>;
+  deleteAll(): Promise<void>;
 }
 
 export interface ISettingsRepository extends IRepository<AppSettings> {

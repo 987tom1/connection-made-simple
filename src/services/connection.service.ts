@@ -86,45 +86,68 @@ export function makeConnectionService(
   leaderRepo: ILeaderRepository,
   settingsRepo: ISettingsRepository,
 ): ConnectionService {
-  async function enrich(conns: Connection[]): Promise<ConnectionWithNames[]> {
-    const results: ConnectionWithNames[] = [];
-    for (const a of conns) {
-      const student = await studentRepo.findById(a.studentId);
-      const leader = await leaderRepo.findById(a.leaderId);
-      results.push({
+  // Load every student + leader once into id-keyed maps. Enriching connections
+  // by looking up these maps in memory replaces what used to be 2 DB queries
+  // PER connection (an N+1 that made the connect/leaders pages time out).
+  async function buildLookups() {
+    const [students, leaders] = await Promise.all([studentRepo.findAll(), leaderRepo.findAll()]);
+    return {
+      studentsById: new Map(students.map((s) => [s.id, s])),
+      leadersById: new Map(leaders.map((l) => [l.id, l])),
+    };
+  }
+
+  function enrichWith(
+    conns: Connection[],
+    studentsById: Map<string, { firstName: string; lastName: string }>,
+    leadersById: Map<string, { fullName: string }>,
+  ): ConnectionWithNames[] {
+    return conns.map((a) => {
+      const student = studentsById.get(a.studentId);
+      const leader = leadersById.get(a.leaderId);
+      return {
         ...a,
         studentName: student ? `${student.firstName} ${student.lastName}` : 'Unknown',
         leaderName: leader?.fullName ?? 'Unknown',
-      });
-    }
-    return results;
+      };
+    });
   }
 
   return {
     async listByStudent(actor, studentId) {
       assertCan(actor, 'student:read');
-      return enrich(await connRepo.findByStudent(studentId));
+      const [conns, { studentsById, leadersById }] = await Promise.all([
+        connRepo.findByStudent(studentId),
+        buildLookups(),
+      ]);
+      return enrichWith(conns, studentsById, leadersById);
     },
 
     async listByLeader(actor, leaderId) {
       assertCan(actor, 'leader:read');
-      return enrich(await connRepo.findByLeader(leaderId));
+      const [conns, { studentsById, leadersById }] = await Promise.all([
+        connRepo.findByLeader(leaderId),
+        buildLookups(),
+      ]);
+      return enrichWith(conns, studentsById, leadersById);
     },
 
     async listAll(actor) {
       assertCan(actor, 'student:read');
-      const all = await connRepo.findAll();
-      const filtered: Connection[] = [];
-      for (const a of all) {
-        const student = await studentRepo.findById(a.studentId);
-        if (!student) continue;
-        if (actor.role === 'grade' && student.grade !== actor.grade) continue;
+      const [all, { studentsById, leadersById }] = await Promise.all([
+        connRepo.findAll(),
+        buildLookups(),
+      ]);
+      const filtered = all.filter((a) => {
+        const student = studentsById.get(a.studentId);
+        if (!student) return false;
+        if (actor.role === 'grade' && student.grade !== actor.grade) return false;
         if (actor.role === 'quad') {
-          if (!canAccessGrade(actor, student.grade) || !canAccessGender(actor, student.gender)) continue;
+          if (!canAccessGrade(actor, student.grade) || !canAccessGender(actor, student.gender)) return false;
         }
-        filtered.push(a);
-      }
-      return enrich(filtered);
+        return true;
+      });
+      return enrichWith(filtered, studentsById, leadersById);
     },
 
     async assign(actor, input) {
@@ -167,12 +190,16 @@ export function makeConnectionService(
 
     async leaderSummary(actor, leaderId) {
       assertCan(actor, 'leader:read');
-      const leader = await leaderRepo.findById(leaderId);
+      const [leader, conns, allStudents] = await Promise.all([
+        leaderRepo.findById(leaderId),
+        connRepo.findByLeader(leaderId),
+        studentRepo.findAll(),
+      ]);
       if (!leader) throw new NotFoundError('Leader not found');
-      const conns = await connRepo.findByLeader(leaderId);
+      const studentsById = new Map(allStudents.map((s) => [s.id, s]));
       const students = [];
       for (const a of conns) {
-        const s = await studentRepo.findById(a.studentId);
+        const s = studentsById.get(a.studentId);
         if (s) students.push(summariseStudent(s));
       }
       return { leader: { id: leader.id, fullName: leader.fullName }, students };
@@ -180,11 +207,14 @@ export function makeConnectionService(
 
     async exportCsv(actor) {
       assertCan(actor, 'student:read');
-      const all = await connRepo.findAll();
+      const [all, { studentsById, leadersById }] = await Promise.all([
+        connRepo.findAll(),
+        buildLookups(),
+      ]);
       const rows: ExportRow[] = [];
       for (const a of all) {
-        const student = await studentRepo.findById(a.studentId);
-        const leader = await leaderRepo.findById(a.leaderId);
+        const student = studentsById.get(a.studentId);
+        const leader = leadersById.get(a.leaderId);
         if (!student || !leader) continue;
         if (actor.role === 'grade' && student.grade !== actor.grade) continue;
         if (actor.role === 'quad') {

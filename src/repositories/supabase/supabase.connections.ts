@@ -79,4 +79,8 @@ export class SupabaseConnectionRepository implements IConnectionRepository {
     `;
     return rows.length > 0;
   }
+
+  async deleteAll(): Promise<void> {
+    await this.sql`delete from connections`;
+  }
 }

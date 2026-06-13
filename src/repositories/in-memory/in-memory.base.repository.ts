@@ -47,6 +47,11 @@ export class InMemoryBaseRepository<T extends { id: string }> implements IReposi
     return existed;
   }
 
+  async deleteAll(): Promise<void> {
+    this.store.clear();
+    await this.writeToPersistence();
+  }
+
   protected async writeToPersistence(): Promise<void> {
     await this.persistence.write(Array.from(this.store.values()));
   }

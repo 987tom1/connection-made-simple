@@ -2746,8 +2746,8 @@ async function renderAdminView(settings, users) {
       </div>
       <div class="form-row">
         <div class="fg"><label class="fl">Valid Session Threshold %</label>
-          <input class="fi" id="s-vt" type="number" min="0" max="100" value="${settings.validThresholdPct||60}">
-          <div class="help-text">Sessions with attendance below this % are excluded</div>
+          <input class="fi" id="s-vt" type="number" min="0" max="100" value="${settings.validThresholdPct||25}">
+          <div class="help-text">Weeks below this % of the typical (median) week are treated as holidays and left out of the average</div>
         </div>
         <div class="fg"><label class="fl">Term Gap (days)</label>
           <input class="fi" id="s-tg" type="number" min="1" max="90" value="${settings.termGapDays||14}">
@@ -2810,7 +2810,7 @@ async function renderAdminView(settings, users) {
         <div class="destructive-header">Destructive Actions</div>
         <div style="display:flex;flex-direction:column;gap:10px">
           <div>
-            <button class="btn btn-secondary btn-full" onclick="if(confirm('This will delete all students and connections. Continue?'))adminAction('/admin/new-year','✓ New year started')">New Year</button>
+            <button class="btn btn-secondary btn-full" onclick="if(confirm('Start a new year? This permanently deletes all students, connections, service and lifegroup data. Leaders and accounts are kept. Continue?'))adminAction('/admin/new-year','✓ New year started')">New Year</button>
             <div class="help-text" style="margin-top:4px">Clears students + connections, keeps accounts and leaders</div>
           </div>
           <div>
@@ -2894,7 +2894,7 @@ async function saveSettings() {
       regRateDenominator: parseInt(document.getElementById('s-rd')?.value||'4',10),
       riskRateNumerator: parseInt(document.getElementById('s-an')?.value||'1',10),
       riskRateDenominator: parseInt(document.getElementById('s-ad')?.value||'2',10),
-      validThresholdPct: parseInt(document.getElementById('s-vt')?.value||'60',10),
+      validThresholdPct: parseInt(document.getElementById('s-vt')?.value||'25',10),
       termGapDays: parseInt(document.getElementById('s-tg')?.value||'14',10),
       // Change 11: include connectionLockDate
       connectionLockDate: document.getElementById('s-lock')?.value || null,

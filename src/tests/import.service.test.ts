@@ -38,11 +38,11 @@ async function initRepos(r: ReturnType<typeof makeRepos>) {
 
 // ── TC55 — Outlier detection: sessions < 50% of average are flagged ──
 describe('Import Service', () => {
-  it('TC55: validThresholdPct defaults to 50', async () => {
+  it('TC55: validThresholdPct defaults to 25 (holiday cutoff vs median week)', async () => {
     const r = makeRepos();
     await initRepos(r);
     const settings = await r.settings.getSettings();
-    expect(settings.validThresholdPct).toBe(50);
+    expect(settings.validThresholdPct).toBe(25);
   });
 
   // ── TC56 — ISO date columns are imported correctly ──

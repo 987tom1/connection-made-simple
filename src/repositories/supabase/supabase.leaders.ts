@@ -77,4 +77,8 @@ export class SupabaseLeaderRepository implements ILeaderRepository {
     const rows = await this.sql`delete from leaders where id = ${id} returning id`;
     return rows.length > 0;
   }
+
+  async deleteAll(): Promise<void> {
+    await this.sql`delete from leaders`;
+  }
 }

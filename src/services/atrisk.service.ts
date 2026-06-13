@@ -163,17 +163,18 @@ export function makeAtRiskService(
       const settings = await settingsRepo.getSettings();
       const students = await studentRepo.findAll();
       const now = new Date().toISOString();
-      let updated = 0;
+      const changed = [];
       for (const s of students) {
         const newStatus = computeStatus(
           s.svcAttended, s.svcTotal, s.grpAttended, s.grpTotal, settings,
         );
         if (newStatus !== s.atRiskStatus) {
-          await studentRepo.save({ ...s, atRiskStatus: newStatus, updatedAt: now });
-          updated++;
+          changed.push({ ...s, atRiskStatus: newStatus, updatedAt: now });
         }
       }
-      return { updated };
+      // Single bulk write (chunked in the repo) instead of one save per student.
+      if (changed.length > 0) await studentRepo.saveMany(changed);
+      return { updated: changed.length };
     },
   };
 }

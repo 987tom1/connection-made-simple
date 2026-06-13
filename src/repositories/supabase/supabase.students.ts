@@ -2,6 +2,7 @@ import type { SqlClient } from './client';
 import type { IStudentRepository } from '../interfaces/entity-repositories';
 import type { Student } from '../../core/entities/student';
 import type { Quad } from '../../core/types/enums';
+import { chunk } from './bulk';
 
 function toStudent(row: Record<string, unknown>): Student {
   const dob = row['date_of_birth'];
@@ -140,9 +141,10 @@ export class SupabaseStudentRepository implements IStudentRepository {
 
   async saveMany(students: Student[]): Promise<void> {
     if (students.length === 0) return;
+    for (const batch of chunk(students)) {
     await this.sql`
       insert into students ${this.sql(
-        students.map((s) => ({
+        batch.map((s) => ({
           id:                s.id,
           first_name:        s.firstName,
           last_name:         s.lastName,
@@ -189,10 +191,15 @@ export class SupabaseStudentRepository implements IStudentRepository {
         data_source       = excluded.data_source,
         updated_at        = excluded.updated_at
     `;
+    }
   }
 
   async delete(id: string): Promise<boolean> {
     const rows = await this.sql`delete from students where id = ${id} returning id`;
     return rows.length > 0;
+  }
+
+  async deleteAll(): Promise<void> {
+    await this.sql`delete from students`;
   }
 }
