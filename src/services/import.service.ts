@@ -338,22 +338,40 @@ export function makeImportService(
         }
       }
 
-      // Finalise each student's svc counts (attended / total VALID services) and
-      // at-risk status. This is the same definition the overview, at-risk and
-      // Connection Audit 'regulars' all read from.
+      // Finalise svc counts (attended / valid services) + at-risk (from svc AND
+      // group) for students in this import. Same definition overview, at-risk and
+      // the Connection Audit 'Regular' stage all read from.
       for (const [sid, stu] of studentsToSaveMap) {
         const svcAttended = validAttendedByStudent.get(sid) ?? 0;
-        const svcRate = validTotal > 0 ? svcAttended / validTotal : null;
-        const atRiskStatus: 'regular' | 'new' | 'declining' | 'atrisk' | 'stopped' =
-          validTotal === 0 ? 'new' :
-          svcAttended === 0 ? 'stopped' :
-          svcRate !== null && svcRate < riskN / riskD ? 'atrisk' :
-          svcRate !== null && svcRate < regN / regD ? 'declining' : 'regular';
-        studentsToSaveMap.set(sid, { ...stu, svcAttended, svcTotal: validTotal, atRiskStatus });
+        studentsToSaveMap.set(sid, {
+          ...stu,
+          svcAttended,
+          svcTotal: validTotal,
+          atRiskStatus: computeStatus(svcAttended, validTotal, stu.grpAttended, stu.grpTotal, settings),
+        });
       }
 
+      // Replace semantics: existing students NOT in this import keep their row and
+      // all connections, but their service counts reset to 0 (no attendance in the
+      // new data). At-risk recomputed from their group data.
       const studentsToSave = [...studentsToSaveMap.values()];
+      const inFile = new Set(studentsToSaveMap.keys());
+      for (const s of allStudents) {
+        if (inFile.has(s.id)) continue;
+        studentsToSave.push({
+          ...s,
+          svcAttended: 0,
+          svcTotal: validTotal,
+          atRiskStatus: computeStatus(0, validTotal, s.grpAttended, s.grpTotal, settings),
+          updatedAt: now,
+        });
+      }
       const attendanceRecords = [...attendanceMap.values()];
+
+      // Replace prior service data (sessions + attendance cascade). Students and
+      // connections are NOT touched.
+      await attendanceRepo.deleteAll();
+      await sessionRepo.deleteAll();
 
       // All writes — ordered to satisfy FKs, each step a single bulk SQL statement
       // 1. Import record first (service_sessions.import_id FK)
