@@ -144,7 +144,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 
 /* Empty state */
 .empty{text-align:center;padding:48px 24px;color:var(--ink-mid)}
-.empty-icon{font-size:48px;margin-bottom:12px;opacity:.4;display:block}
+.empty-icon{width:48px;height:48px;margin:0 auto 12px;opacity:.35;display:block;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .empty-title{font-size:16px;font-weight:600}
 .empty-sub{font-size:13px;color:var(--ink-faint);margin-top:6px}
 
@@ -334,7 +334,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 .ca-av.f{background:#fce4f1;color:#c0257e}.ca-av.m{background:#dbe6ff;color:#2851a3}.ca-av.n{background:#fef3c7;color:#92660b}
 .ca-tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:4px}
 .ca-tile{background:var(--ca-card);border:1px solid var(--ca-line);border-radius:var(--ca-r);padding:13px 8px;min-height:84px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-shadow:var(--ca-sh);cursor:pointer}
-.ca-tile .tic{font-size:24px;margin-bottom:6px}
+.ca-tile .tic{display:flex;justify-content:center;margin-bottom:6px}.ca-tile .tic svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .ca-tile .tl{font-size:.74rem;font-weight:700;color:var(--ca-navy)}
 .ca-tile .ts{font-size:.62rem;color:var(--ca-muted);margin-top:2px}
 .ca-lgbar{height:7px;background:var(--ca-paper);border-radius:999px;overflow:hidden;margin-top:5px;max-width:90px}
@@ -367,7 +367,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 .ca-scr small{display:block;font-size:.5rem;font-weight:700;color:var(--ca-muted);text-transform:uppercase}
 .ca-uslot{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--ca-line)}
 .ca-uslot:last-child{border-bottom:none}
-.ca-uic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;flex:none;font-size:15px;font-weight:800}
+.ca-uic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;flex:none;font-size:15px;font-weight:800}.ca-uic svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .ca-uic.ok{background:#e7f7ec;color:#15803d}
 .ca-uic.wn{background:#fef3c7;color:#92660b}
 .ca-usl{flex:1;min-width:0}
@@ -537,10 +537,18 @@ const IC = {
   unlock:   '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 019.9-1"/>',
   logout:   '<path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
   target:   '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+  check:    '<path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+  key:      '<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>',
+  info:     '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+  clipboard:'<path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>',
+  pie:      '<path d="M21.21 15.89A10 10 0 118 2.83"/><path d="M22 12A10 10 0 0012 2v10z"/>',
+  group:    '<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>',
+  deck:     '<rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',
 };
 function icN(k){ return `<svg class="ic-n" viewBox="0 0 24 24">${IC[k]||''}</svg>`; }
 function icS(k){ return `<svg class="ic-s" viewBox="0 0 24 24">${IC[k]||''}</svg>`; }
 function icLg(k){ return `<svg class="ic-lg" viewBox="0 0 24 24">${IC[k]||''}</svg>`; }
+function icEmpty(k){ return `<svg class="empty-icon" viewBox="0 0 24 24">${IC[k]||''}</svg>`; }
 
 function navItems() {
   const u = S.user; if (!u) return [];
@@ -825,7 +833,7 @@ async function _renderHomeInner() {
 
   if (stats) {
     if (stats.unconnectedTotal === 0 && stats.ministryTotal > 0) {
-      body += '<div class="alert al-ok">✅ All students are connected!</div>';
+      body += `<div class="alert al-ok">${icS('check')} All students are connected!</div>`;
     }
     if (u.role === 'admin' && stats.ministryTotal === 0) {
       body += `<div class="first-run">
@@ -902,7 +910,7 @@ async function _renderHomeInner() {
             body += `<div style="display:flex;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid var(--paper-dark)">
               <div style="width:60px;font-size:13px;font-weight:700">Grade ${g.grade}</div>
               <div style="flex:1"><div class="pb"><div class="pb-f ${pct >= 80 ? 'fill-g' : pct >= 50 ? 'fill-a' : 'fill-r'}" style="width:${pct}%"></div></div></div>
-              <div style="font-size:12px;color:var(--ink-mid);width:90px;text-align:right">${g.connectedStudents}/${g.totalStudents} (${pct}%)${g.atRiskCount ? ' ⚠️' + g.atRiskCount : ''}</div>
+              <div style="font-size:12px;color:var(--ink-mid);width:90px;text-align:right">${g.connectedStudents}/${g.totalStudents} (${pct}%)${g.atRiskCount ? ` <span style="color:var(--danger);display:inline-flex;align-items:center;gap:2px">${icS('alert')}${g.atRiskCount}</span>` : ''}</div>
             </div>`;
           }
           body += '</div>';
@@ -934,15 +942,15 @@ async function renderLeaders() {
   </div></div>`;
 
   if (u.role === 'quad') {
-    body += `<div class="alert al-info">✏️ You can add, edit and connect leaders within your quad (${u.quad ? quadGender(u.quad) : ''} · Yr ${quadGrades(u.quad).join('–') || '—'}).</div>`;
+    body += `<div class="alert al-info">${icS('info')} You can add, edit and connect leaders within your quad (${u.quad ? quadGender(u.quad) : ''} · Yr ${quadGrades(u.quad).join('–') || '—'}).</div>`;
   }
 
   if (canEdit) {
-    body += `<button class="btn btn-primary btn-full" style="margin-bottom:12px" onclick="go('leaders')">🔗 Connect Students</button>`;
+    body += `<button class="btn btn-primary btn-full" style="margin-bottom:12px" onclick="go('leaders')">${icS('link')} Connect Students</button>`;
   }
 
   if (!leaders.length) {
-    body += '<div class="empty"><span class="empty-icon">👥</span><div class="empty-title">No leaders yet</div><div class="empty-sub">Add leaders to start connecting students</div></div>';
+    body += `<div class="empty">${icEmpty('users')}<div class="empty-title">No leaders yet</div><div class="empty-sub">Add leaders to start connecting students</div></div>`;
   } else {
     // Mobile cards
     body += '<div class="mob">';
@@ -1023,7 +1031,7 @@ async function showLeaderDetail(id) {
     <div class="sh">Assigned Students (${students.length})</div>
     ${students.length ? studRows : '<p style="color:var(--ink-faint);font-size:13px;padding:12px 0">No students assigned yet</p>'}
     <div style="display:flex;gap:8px;margin-top:16px">
-      ${canEdit?`<button class="btn btn-primary btn-sm" onclick="closeModal();go('leaders')">🔗 Connect</button>`:''}
+      ${canEdit?`<button class="btn btn-primary btn-sm" onclick="closeModal();go('leaders')">${icS('link')} Connect</button>`:''}
       ${canEdit?`<button class="btn btn-secondary btn-sm" onclick="closeModal();showEditLeader('${id}')">${icS('edit')} Edit</button>`:''}
       <button class="btn btn-secondary btn-sm" onclick="closeModal()">Close</button>
     </div>`);
@@ -1173,10 +1181,10 @@ function renderConnectView() {
   let lockBanner = '';
   if (isLocked) {
     const lockFmt = new Date(lockDate).toLocaleDateString();
-    lockBanner = `<div class="lock-banner">🔒 Connections locked as of ${lockFmt}.${u?.role==='admin'?' (Admin can still make changes.)':' Contact admin to make changes.'}</div>`;
+    lockBanner = `<div class="lock-banner">${icS('lock')} Connections locked as of ${lockFmt}.${u?.role==='admin'?' (Admin can still make changes.)':' Contact admin to make changes.'}</div>`;
   }
   const gradeHint = (u?.role === 'grade')
-    ? `<div class="alert al-info" style="margin-bottom:10px">💡 Tap "Add Students" on any leader to search. You can add students from other grades if they match the leader's gender.</div>`
+    ? `<div class="alert al-info" style="margin-bottom:10px">Tap "Add Students" on any leader to search. You can add students from other grades if they match the leader's gender.</div>`
     : '';
 
   let body = `
@@ -1186,7 +1194,7 @@ function renderConnectView() {
           <div class="ph-title">Connect</div>
           <div class="ph-sub">${connectedCount}/${totalStudents} students connected · ${visLeaders.length} leader${visLeaders.length!==1?'s':''}</div>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="exportConnectCSV()" aria-label="Export connections to CSV">⬇ Export</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportConnectCSV()" aria-label="Export connections to CSV">Export CSV</button>
       </div>
     </div>
     ${lockBanner}${gradeHint}
@@ -1199,7 +1207,7 @@ function renderConnectView() {
     </div>`;
 
   if (!visLeaders.length) {
-    body += `<div class="empty"><span class="empty-icon">👥</span><div class="empty-title">No leaders match filters</div><div class="empty-sub">Clear filters or add leaders first</div></div>`;
+    body += `<div class="empty">${icEmpty('users')}<div class="empty-title">No leaders match filters</div><div class="empty-sub">Clear filters or add leaders first</div></div>`;
   } else {
     body += '<div class="connect-grid">';
     for (const l of visLeaders) {
@@ -1267,7 +1275,6 @@ function openStudentPicker(leaderId, leaderGender, leaderName) {
   modal(`
     <div class="mo-title">Add Students → ${leaderName}</div>
     <div style="position:relative;margin-bottom:4px">
-      <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--ink-faint);pointer-events:none">🔍</span>
       <input class="picker-search" id="picker-q" placeholder="Search by name, grade…" oninput="filterPicker()" autofocus>
     </div>
     <div id="picker-list" class="picker-list"></div>`,
@@ -1429,7 +1436,7 @@ async function renderMyStudents() {
   let body = `<div class="ph"><div class="ph-title">My Students</div><div class="ph-sub">Select a leader to view their students</div></div>`;
 
   if (!leaders.length) {
-    body += '<div class="empty"><span class="empty-icon">👥</span><div class="empty-title">No leaders yet</div><div class="empty-sub">Add leaders first</div></div>';
+    body += `<div class="empty">${icEmpty('users')}<div class="empty-title">No leaders yet</div><div class="empty-sub">Add leaders first</div></div>`;
     setApp(shell(body));
     return;
   }
@@ -1477,12 +1484,12 @@ async function renderMyStudents() {
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               <span class="li-title">${s.fullName}</span>${riskChip(s.atRiskStatus)}
             </div>
-            <div class="li-sub">Yr ${s.grade || '—'} · ${s.gender}${bd ? ' · 🎂 ' + bd : ''}</div>
+            <div class="li-sub">Yr ${s.grade || '—'} · ${s.gender}${bd ? ' · ' + bd : ''}</div>
             <div style="display:flex;gap:14px;margin-top:4px;font-size:12px">
               <span style="font-weight:700;color:${pc}">Fridays ${pct !== null ? pct + '% (' + s.svcAttended + '/' + s.svcTotal + ')' : '—'}</span>
               <span style="color:var(--ink-mid)">Lifegroup ${gpct !== null ? gpct + '% (' + s.grpAttended + '/' + s.grpTotal + ' wk)' : '—'}</span>
             </div>
-            ${(s.mobile || s.parentPhone) ? `<div style="font-size:12px;color:var(--ink-mid);margin-top:2px">${s.mobile ? '📱 ' + s.mobile : ''}${s.mobile && s.parentPhone ? ' · ' : ''}${s.parentPhone ? '👪 ' + s.parentPhone : ''}</div>` : ''}
+            ${(s.mobile || s.parentPhone) ? `<div style="font-size:12px;color:var(--ink-mid);margin-top:2px">${s.mobile ? s.mobile : ''}${s.mobile && s.parentPhone ? ' · ' : ''}${s.parentPhone ? s.parentPhone : ''}</div>` : ''}
           </div>
         </div>`;
       }
@@ -1526,7 +1533,7 @@ async function renderQuadView() {
   let body = `<div class="ph"><div class="ph-title">Quad View</div><div class="ph-sub">${lastConnectStr || 'Leader assignments in your scope'}</div></div>`;
 
   if (!leaders.length) {
-    body += '<div class="empty"><span class="empty-icon">👥</span><div class="empty-title">No leaders in scope</div></div>';
+    body += `<div class="empty">${icEmpty('users')}<div class="empty-title">No leaders in scope</div></div>`;
   } else {
     for (const l of leaders) {
       const allocs = (aByL[l.id]||[]).map(a => sById[a.studentId]).filter(Boolean);
@@ -1535,7 +1542,7 @@ async function renderQuadView() {
         <div class="card-hdr">
           <div>
             <div class="card-title">${l.fullName}</div>
-            <div class="card-sub">Gr ${l.grades?.join(', ')||'All'} · ${l.gender||'any'} · ${allocs.length} student${allocs.length!==1?'s':''}${atRiskCount?' · ⚠️ '+atRiskCount+' at risk':''}</div>
+            <div class="card-sub">Gr ${l.grades?.join(', ')||'All'} · ${l.gender||'any'} · ${allocs.length} student${allocs.length!==1?'s':''}${atRiskCount?` · <span style="display:inline-flex;align-items:center;gap:2px">${icS('alert')}${atRiskCount} at risk</span>`:''}</div>
           </div>
           <button class="btn btn-ghost btn-sm" onclick="showLeaderDetail('${l.id}')">View →</button>
         </div>`;
@@ -1595,7 +1602,7 @@ async function renderMyQuad() {
 
   if (_mqTab === 'leaders') {
     if (!leaders.length) {
-      body += '<div class="empty"><span class="empty-icon">👥</span><div class="empty-title">No leaders in scope</div></div>';
+      body += `<div class="empty">${icEmpty('users')}<div class="empty-title">No leaders in scope</div></div>`;
     } else {
       for (const l of leaders) {
         const allocs = (aByL[l.id]||[]).map(a => sById[a.studentId]).filter(Boolean);
@@ -1604,7 +1611,7 @@ async function renderMyQuad() {
           <div class="card-hdr">
             <div>
               <div class="card-title">${l.fullName}</div>
-              <div class="card-sub">Gr ${l.grades?.join(', ')||'All'} · ${l.gender||'any'} · ${allocs.length} student${allocs.length!==1?'s':''}${atRiskCount?' · ⚠️ '+atRiskCount+' at risk':''}</div>
+              <div class="card-sub">Gr ${l.grades?.join(', ')||'All'} · ${l.gender||'any'} · ${allocs.length} student${allocs.length!==1?'s':''}${atRiskCount?` · <span style="display:inline-flex;align-items:center;gap:2px">${icS('alert')}${atRiskCount} at risk</span>`:''}</div>
             </div>
             <button class="btn btn-ghost btn-sm" onclick="showLeaderDetail('${l.id}')">View →</button>
           </div>`;
@@ -1631,7 +1638,7 @@ async function renderMyQuad() {
 
   if (_mqTab === 'students') {
     if (!students.length) {
-      body += '<div class="empty"><span class="empty-icon">🎓</span><div class="empty-title">No students in scope</div></div>';
+      body += `<div class="empty">${icEmpty('id')}<div class="empty-title">No students in scope</div></div>`;
     } else {
       for (const s of students) {
         const pct = svcPct(s);
@@ -1653,7 +1660,7 @@ async function renderMyQuad() {
   if (_mqTab === 'at-risk') {
     const atRiskStudents = students.filter(s => s.atRiskStatus && s.atRiskStatus !== 'regular');
     if (!atRiskStudents.length) {
-      body += '<div class="empty"><span class="empty-icon">✅</span><div class="empty-title">No at-risk students</div><div class="empty-sub">Great news — attendance looks healthy</div></div>';
+      body += `<div class="empty">${icEmpty('check')}<div class="empty-title">No at-risk students</div><div class="empty-sub">Great news — attendance looks healthy</div></div>`;
     } else {
       const groups = { stopped:[], atrisk:[], declining:[], watch:[] };
       for (const s of atRiskStudents) if (groups[s.atRiskStatus]) groups[s.atRiskStatus].push(s);
@@ -1735,8 +1742,8 @@ async function renderAtRisk() {
   let body = `
     <div class="ph">
       <div style="display:flex;align-items:center;justify-content:space-between">
-        <div><div class="ph-title">⚠️ At Risk</div><div class="ph-sub">${list.length} student${list.length!==1?'s':''} flagged</div></div>
-        ${['director','admin'].includes(u.role)?`<button class="btn btn-secondary btn-sm" onclick="recomputeAtRisk()">🔄 Recompute</button>`:''}
+        <div><div class="ph-title" style="display:flex;align-items:center;gap:7px">${icN('alert')} At Risk</div><div class="ph-sub">${list.length} student${list.length!==1?'s':''} flagged</div></div>
+        ${['director','admin'].includes(u.role)?`<button class="btn btn-secondary btn-sm" onclick="recomputeAtRisk()">Recompute</button>`:''}
       </div>
     </div>`;
 
@@ -1750,7 +1757,7 @@ async function renderAtRisk() {
   }
 
   if (!list.length) {
-    body += '<div class="empty"><span class="empty-icon">✅</span><div class="empty-title">No at-risk students</div><div class="empty-sub">Great news — attendance looks healthy</div></div>';
+    body += `<div class="empty">${icEmpty('check')}<div class="empty-title">No at-risk students</div><div class="empty-sub">Great news — attendance looks healthy</div></div>`;
   } else {
     const groups = { declining:[], atrisk:[], stopped:[], watch:[] };
     for (const s of list) if (groups[s.status]) groups[s.status].push(s);
@@ -1828,7 +1835,7 @@ async function recomputeAtRisk() {
     const res = await API.post('/at-risk/recompute', {});
     toast(`Recomputed: ${res.updated} students updated`);
     await renderAtRisk();
-  } catch (e) { toast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = '🔄 Recompute'; } }
+  } catch (e) { toast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = 'Recompute'; } }
 }
 
 function showAtRiskUpdate(studentId, name, currentStatus) {
@@ -1880,12 +1887,12 @@ function renderStudentView() {
 
   let body = `
     <div class="ph"><div class="ph-title">Student Search</div><div class="ph-sub">${vis.length} of ${students.length}</div></div>
-    <div class="sbar"><span class="si">🔍</span><input id="stu-search" type="text" placeholder="Search by name…" value="${search}" oninput="studSearch(this.value)"></div>`;
+    <div class="sbar"><input id="stu-search" type="text" placeholder="Search by name…" value="${search}" oninput="studSearch(this.value)"></div>`;
   if (ssGrades.length) body += `<div class="filter-row"><span style="font-size:11px;font-weight:700;color:var(--ink-mid)">Grade:</span>${gChips}</div>`;
   if (ssGenders.length) body += `<div class="filter-row"><span style="font-size:11px;font-weight:700;color:var(--ink-mid)">Gender:</span>${dChips}</div>`;
 
   if (!vis.length) {
-    body += '<div class="empty"><span class="empty-icon">🎓</span><div class="empty-title">No students found</div></div>';
+    body += `<div class="empty">${icEmpty('id')}<div class="empty-title">No students found</div></div>`;
   } else {
     body += '<div class="mob">';
     for (const s of vis) {
@@ -2126,7 +2133,7 @@ async function renderTrends() {
 
   let body = `<div class="ph"><div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
     <div><div class="ph-title">Attendance Trends</div><div class="ph-sub">Service &amp; lifegroup overview</div></div>
-    ${canExport?'<button class="btn btn-secondary btn-sm" onclick="exportTrendsCSV()">⬇ Export</button>':''}
+    ${canExport?'<button class="btn btn-secondary btn-sm" onclick="exportTrendsCSV()">Export CSV</button>':''}
   </div></div>`;
 
   // Tab bar
@@ -2296,7 +2303,7 @@ async function renderImport() {
         ondragover="event.preventDefault();this.style.borderColor='var(--accent)'"
         ondragleave="this.style.borderColor=''"
         ondrop="event.preventDefault();this.style.borderColor='';handleImportDrop(event)">
-        <div style="font-size:36px;margin-bottom:8px">📥</div>
+        <div style="margin-bottom:8px">${icLg('upload')}</div>
         <div style="font-weight:600">Drop CSV here or tap to browse</div>
         <div style="font-size:12px;color:var(--ink-faint);margin-top:4px">Supports .csv files up to 10MB</div>
       </div>
@@ -2471,7 +2478,7 @@ async function renderAdminView(settings, users) {
   const tabs = ['settings','accounts','data','audit'];
   const tabHtml = tabs.map(t => `<button class="tbbtn ${_adminTab===t?'on':''}" onclick="switchAdminTab('${t}')">${t.charAt(0).toUpperCase()+t.slice(1)}</button>`).join('');
 
-  let body = `<div class="ph"><div class="ph-title">⚙️ Admin</div></div>
+  let body = `<div class="ph"><div class="ph-title" style="display:flex;align-items:center;gap:7px">${icN('settings')} Admin</div></div>
     <div class="tbbar">${tabHtml}</div>`;
 
   if (_adminTab === 'settings') {
@@ -2520,7 +2527,7 @@ async function renderAdminView(settings, users) {
           <div class="help-text">Days between sessions = new term</div>
         </div>
       </div>
-      <button class="btn btn-primary btn-sm" onclick="saveSettings()">💾 Save Settings</button>
+      <button class="btn btn-primary btn-sm" onclick="saveSettings()">Save Settings</button>
     </div>`;
   }
 
@@ -2555,7 +2562,7 @@ async function renderAdminView(settings, users) {
           </div>
           <div class="li-right">
             <button class="btn btn-ghost btn-sm" onclick="showEditUser('${u.id}')" title="Edit account" aria-label="Edit ${u.displayName}">${icS('edit')}</button>
-            <button class="btn btn-ghost btn-sm" onclick="showSetPassword('${u.id}','${u.displayName.replace(/'/g,"\\'")}') " title="Reset password" aria-label="Reset password for ${u.displayName}">🔑</button>
+            <button class="btn btn-ghost btn-sm" onclick="showSetPassword('${u.id}','${u.displayName.replace(/'/g,"\\'")}') " title="Reset password" aria-label="Reset password for ${u.displayName}">${icS('key')}</button>
             <button class="btn btn-ghost btn-sm" onclick="toggleUserStatus('${u.id}','${u.status}')" title="${u.status==='active'?'Deactivate':'Activate'}" aria-label="${u.status==='active'?'Deactivate':'Activate'} ${u.displayName}">${u.status==='active'?icS('lock'):icS('unlock')}</button>
             <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="confirmDelUser('${u.id}','${u.displayName.replace(/'/g,"\\'")}') " aria-label="Delete ${u.displayName}">${icS('trash')}</button>
           </div>
@@ -2569,18 +2576,18 @@ async function renderAdminView(settings, users) {
     // Change 12: Visual separation of destructive actions
     body += `<div class="card" style="display:flex;flex-direction:column;gap:10px">
       <div>
-        <button class="btn btn-secondary btn-full" onclick="if(confirm('Save current users and leaders as year defaults?'))adminAction('/admin/save-defaults','✓ Defaults saved')">💾 Save Defaults</button>
+        <button class="btn btn-secondary btn-full" onclick="if(confirm('Save current users and leaders as year defaults?'))adminAction('/admin/save-defaults','✓ Defaults saved')">Save Defaults</button>
         <div class="help-text" style="margin-top:4px">Snapshots accounts + leaders as baseline for next year</div>
       </div>
       <div class="destructive-section">
-        <div class="destructive-header">⚠️ Destructive Actions</div>
+        <div class="destructive-header">Destructive Actions</div>
         <div style="display:flex;flex-direction:column;gap:10px">
           <div>
-            <button class="btn btn-secondary btn-full" onclick="if(confirm('This will delete all students and connections. Continue?'))adminAction('/admin/new-year','✓ New year started')">🔄 New Year</button>
+            <button class="btn btn-secondary btn-full" onclick="if(confirm('This will delete all students and connections. Continue?'))adminAction('/admin/new-year','✓ New year started')">New Year</button>
             <div class="help-text" style="margin-top:4px">Clears students + connections, keeps accounts and leaders</div>
           </div>
           <div>
-            <button class="btn btn-danger btn-full" onclick="if(confirm('⚠️ RESET ALL DATA? This cannot be undone.'))adminAction('/admin/reset','✓ Full reset complete')">⚠️ Full Reset</button>
+            <button class="btn btn-danger btn-full" onclick="if(confirm('RESET ALL DATA? This cannot be undone.'))adminAction('/admin/reset','✓ Full reset complete')">Full Reset</button>
             <div class="help-text" style="margin-top:4px">Clears everything except user accounts</div>
           </div>
         </div>
@@ -2597,7 +2604,7 @@ async function renderAdminView(settings, users) {
       const entries = await API.get('/admin/audit');
       let auditHtml = '';
       if (!entries || !entries.length) {
-        auditHtml = '<div class="empty"><span class="empty-icon">📋</span><div class="empty-title">No audit entries</div><div class="empty-sub">Actions will appear here as they are performed</div></div>';
+        auditHtml = `<div class="empty">${icEmpty('clipboard')}<div class="empty-title">No audit entries</div><div class="empty-sub">Actions will appear here as they are performed</div></div>`;
       } else {
         // Define chip colours for common action types
         function auditChip(action) {
@@ -3111,12 +3118,12 @@ function rHub(){
     +'<div><div style="font-size:1.3rem;font-weight:800">'+m.kpis.decisions+'</div><div style="font-size:.56rem;opacity:.75;text-transform:uppercase">Decisions</div></div>'
     +'</div></div>';
   const tiles=[
-    ['ca-overview','📊','Overview','Term health at a glance'],
-    ['ca-funnel','📈','Funnel & Conversion','Where people drop off'],
-    ['ca-groups','🧑‍🤝‍🧑','Lifegroup Health',m.groups.length+' cohorts · '+decl+' declining'],
-    ['ca-people','👥','People',m.people.filter(p=>p.stage>0).length+' tracked · search'],
-    ['ca-data','📥','Data','2 synced · 4 uploads'+(seedOn()?' · seed':'')],
-    ['ca-deck','📑','Build Presentation','Exec deck · new tab'],
+    ['ca-overview',icS('pie'),'Overview','Term health at a glance'],
+    ['ca-funnel',icS('chart'),'Funnel & Conversion','Where people drop off'],
+    ['ca-groups',icS('group'),'Lifegroup Health',m.groups.length+' cohorts · '+decl+' declining'],
+    ['ca-people',icS('users'),'People',m.people.filter(p=>p.stage>0).length+' tracked · search'],
+    ['ca-data',icS('upload'),'Data','2 synced · 4 uploads'+(seedOn()?' · seed':'')],
+    ['ca-deck',icS('deck'),'Build Presentation','Exec deck · new tab'],
   ];
   b+='<div class="ca-tiles">'+tiles.map(t=>'<div class="ca-tile" onclick="go(\''+t[0]+'\')"><span class="tic">'+t[1]+'</span><div class="tl">'+t[2]+'</div><div class="ts">'+t[3]+'</div></div>').join('')+'</div>';
   caShell(b,'ca-hub');
@@ -3344,7 +3351,7 @@ function exportQuad(q){
 function slotS(t,sub){return '<div class="ca-uslot"><div class="ca-uic ok">✓</div><div class="ca-usl"><div class="ca-ust">'+t+'</div><div class="ca-uss">'+sub+'</div></div><span class="chip c-success">Synced</span></div>';}
 function slotU(kind,t,up){
   const sd=up.src==='seed';
-  return '<div class="ca-uslot"><div class="ca-uic '+(sd?'wn':'ok')+'">📥</div><div class="ca-usl"><div class="ca-ust">'+t+'</div><div class="ca-uss">'+(sd?'Demo seed':esc(up.fn))+' · '+up.rows.length+' rows · '+fmtD(up.at)+'</div></div><button class="btn btn-secondary btn-sm" onclick="CA.pick(\''+kind+'\')">Replace</button><input type="file" id="ca-f-'+kind+'" accept=".csv,.xlsx" style="display:none" onchange="CA.upload(\''+kind+'\',this)"></div>';
+  return '<div class="ca-uslot"><div class="ca-uic '+(sd?'wn':'ok')+'">'+icS('upload')+'</div><div class="ca-usl"><div class="ca-ust">'+t+'</div><div class="ca-uss">'+(sd?'Demo seed':esc(up.fn))+' · '+up.rows.length+' rows · '+fmtD(up.at)+'</div></div><button class="btn btn-secondary btn-sm" onclick="CA.pick(\''+kind+'\')">Replace</button><input type="file" id="ca-f-'+kind+'" accept=".csv,.xlsx" style="display:none" onchange="CA.upload(\''+kind+'\',this)"></div>';
 }
 function rData(){
   const m=model();
@@ -3362,7 +3369,7 @@ function rData(){
     +slotU('flows','People Flow CSV',st.uploads.flows)
     +'</div>';
   b+='<div class="sh">Export</div><div class="card" style="display:flex;align-items:center;gap:12px">'
-    +'<div class="ca-uic ok" style="background:var(--ca-chip);color:var(--ca-blue)">📑</div>'
+    +'<div class="ca-uic ok" style="background:var(--ca-chip);color:var(--ca-blue)">'+icS('deck')+'</div>'
     +'<div class="ca-usl"><div class="ca-ust">Executive brief</div><div class="ca-uss">Self-contained slide deck of the full audit · opens in a new tab</div></div>'
     +'<button class="btn btn-primary btn-sm" onclick="CA.buildDeck()">Export ↗</button>'
     +'</div>';
@@ -3411,7 +3418,7 @@ function upload(kind,input){
 function rDeck(){
   let b='<button class="btn btn-secondary btn-sm" style="margin-bottom:10px" onclick="go(\'ca-overview\')">‹ Back to Overview</button>';
   b+='<div class="card" style="text-align:center;padding:26px 16px">'
-    +'<div style="font-size:40px">📑</div>'
+    +'<div style="margin-bottom:8px">'+icLg('deck')+'</div>'
     +'<div style="font-size:1rem;font-weight:800;color:var(--ca-navy);margin-top:8px">Executive presentation</div>'
     +'<div style="font-size:.74rem;color:var(--ca-muted);margin:8px 0 16px;line-height:1.55">Generates a self-contained slide deck from the current audit — term health, funnel, lifegroup findings and recommended actions. Opens in a new tab.</div>'
     +'<button class="btn btn-primary btn-full" onclick="CA.buildDeck()">Build presentation ↗</button>'
