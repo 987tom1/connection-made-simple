@@ -719,7 +719,7 @@ async function render() {
   const p = S.page;
   if (p && p.indexOf('ca-') === 0 && window.CA) { await CA.render(p); return; } /*CA-HOOK*/
   if (p==='home') await renderHome();
-  else if (p==='leaders') await renderLeaders();
+  else if (p==='leaders') await renderConnect();
   else if (p==='allocate') go('leaders'); // legacy route — merged into leaders
   else if (p==='my-students') await renderMyStudents();
   else if (p==='quad-view') go('leaders'); // merged into leaders
@@ -1084,7 +1084,7 @@ async function showLeaderDetail(id) {
     <div class="sh">Assigned Students (${students.length})</div>
     ${students.length ? studRows : '<p style="color:var(--ink-faint);font-size:13px;padding:12px 0">No students assigned yet</p>'}
     <div style="display:flex;gap:8px;margin-top:16px">
-      ${canEdit?`<button class="btn btn-primary btn-sm" onclick="closeModal();go('leaders')">${icS('link')} Connect</button>`:''}
+      ${canEdit?`<button class="btn btn-primary btn-sm" onclick="closeModal();openStudentPicker('${id}','${leader.gender||''}','${leader.fullName.replace(/'/g,"\\'")}')">${icS('link')} Add Students</button>`:''}
       ${canEdit?`<button class="btn btn-secondary btn-sm" onclick="closeModal();showEditLeader('${id}')">${icS('edit')} Edit</button>`:''}
       <button class="btn btn-secondary btn-sm" onclick="closeModal()">Close</button>
     </div>`);
@@ -1121,7 +1121,7 @@ async function submitAddLeader() {
   try {
     await API.post('/leaders', { fullName:name, gender, grades });
     Cache.del('/leaders', '/connections', '/overview');
-    closeModal(); toast('Leader added'); await renderLeaders();
+    closeModal(); toast('Leader added'); await renderConnect();
   } catch (e) { errEl.innerHTML=`<div class="alert al-err">${e.message}</div>`; }
 }
 
@@ -1163,7 +1163,7 @@ async function submitEditLeader(id) {
   try {
     await API.patch(`/leaders/${id}`, { fullName, gender, grades, active });
     Cache.del('/leaders', '/overview');
-    closeModal(); toast('Leader updated'); await renderLeaders();
+    closeModal(); toast('Leader updated'); await renderConnect();
   } catch (e) { errEl.innerHTML=`<div class="alert al-err">${e.message}</div>`; }
 }
 
@@ -1171,7 +1171,7 @@ function confirmDelLeader(id, name) {
   modal(`<div class="mo-title">Delete Leader?</div>
     <p style="color:var(--ink-mid);margin-bottom:20px">Delete <strong>${name}</strong> and all their connections?</p>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-danger" style="flex:1" onclick="API.del('/leaders/${id}').then(()=>{Cache.del('/leaders','/connections','/overview','/at-risk');closeModal();toast('Deleted');renderLeaders()}).catch(e=>toast(e.message))">Delete</button>
+      <button class="btn btn-danger" style="flex:1" onclick="API.del('/leaders/${id}').then(()=>{Cache.del('/leaders','/connections','/overview','/at-risk');closeModal();toast('Deleted');renderConnect()}).catch(e=>toast(e.message))">Delete</button>
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
     </div>`);
 }
@@ -1246,10 +1246,13 @@ function renderConnectView() {
     <div class="ph">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <div>
-          <div class="ph-title">Connect</div>
+          <div class="ph-title">Leaders &amp; Connect</div>
           <div class="ph-sub">${connectedCount}/${totalStudents} students connected · ${visLeaders.length} leader${visLeaders.length!==1?'s':''}</div>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="exportConnectCSV()" aria-label="Export connections to CSV">Export CSV</button>
+        <div style="display:flex;gap:6px">
+          ${canEdit?`<button class="btn btn-primary btn-sm" onclick="showAddLeader()">+ Add Leader</button>`:''}
+          <button class="btn btn-secondary btn-sm" onclick="exportConnectCSV()" aria-label="Export connections to CSV">Export CSV</button>
+        </div>
       </div>
     </div>
     ${lockBanner}${gradeHint}
@@ -1293,8 +1296,13 @@ function renderConnectView() {
       }
 
       const gi = l.gender==='female'?'♀ ':l.gender==='male'?'♂ ':'';
+      const nm = l.fullName.replace(/'/g,"\\'");
       body += `<div class="connect-leader">
-        <div class="connect-leader-name">${gi}${l.fullName}</div>
+        <div style="display:flex;align-items:flex-start;gap:6px">
+          <div class="connect-leader-name" style="flex:1">${gi}${l.fullName}</div>
+          ${canEdit?`<button class="btn btn-ghost btn-sm" style="padding:2px 5px" title="Edit leader" onclick="showEditLeader('${l.id}')">${icS('edit')}</button>
+          <button class="btn btn-ghost btn-sm" style="padding:2px 5px;color:var(--danger)" title="Delete leader" onclick="confirmDelLeader('${l.id}','${nm}')">${icS('trash')}</button>`:''}
+        </div>
         <div class="connect-leader-meta">Gr ${l.grades?.join(', ')||'All'} · ${l.gender||'any gender'}</div>
         <div class="connect-count-bar"><div class="connect-count-fill ${fillCls}" style="width:${pct}%"></div></div>
         <div class="connect-count-label">
