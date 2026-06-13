@@ -39,7 +39,7 @@ export interface AtRiskService {
 // Severity order for sorting (most severe first)
 const SEVERITY_ORDER: AtRiskStatus[] = ['stopped', 'atrisk', 'declining', 'watch'];
 
-function computeStatus(
+export function computeStatus(
   svcAttended: number,
   svcTotal: number,
   grpAttended: number,

@@ -3,6 +3,7 @@ import { generateId } from '../utils/id';
 import { assertCan } from './access-control';
 import type {
   IStudentRepository,
+  ILeaderRepository,
   IServiceSessionRepository,
   IServiceAttendanceRepository,
   ILifegroupRepository,
@@ -14,6 +15,19 @@ import type {
 import type { Actor } from '../core/entities/user';
 import { computeQuad } from '../core/types/enums';
 import { BadRequestError } from '../core/errors/app-error';
+import { computeStatus } from './atrisk.service';
+
+// A "week" runs Monday→Sunday — the calendar week that contains that week's
+// Friday service. Map any meeting date to the Monday on/before it so lifegroup
+// attendance is bucketed per week (a group that meets twice in a week counts as
+// one week).
+function weekStartOf(isoDate: string): string {
+  const d = new Date(isoDate + 'T00:00:00Z');
+  if (isNaN(d.getTime())) return isoDate;
+  const offset = (d.getUTCDay() + 6) % 7; // days since this week's Monday
+  d.setUTCDate(d.getUTCDate() - offset);
+  return d.toISOString().slice(0, 10);
+}
 
 const ServiceRowSchema = z.object({
   first_name: z.string().min(1),
@@ -115,6 +129,7 @@ export function makeImportService(
   lifegroupRepo: ILifegroupRepository,
   lifegroupWeekRepo: ILifegroupWeekRepository,
   lifegroupAttendanceRepo: ILifegroupAttendanceRepository,
+  leaderRepo: ILeaderRepository,
 ): ImportService {
   return {
     async listHistory(actor) {
@@ -374,95 +389,110 @@ export function makeImportService(
       const { groups } = parsed.data;
       if (groups.length === 0) throw new BadRequestError('No groups found in upload');
 
-      // Two reads upfront — parallel
-      const [allStudents, allExistingGroups] = await Promise.all([
+      // Replace semantics: a group import is the authoritative lifegroup dataset.
+      // Clear prior lifegroup data first. Students + connections are NOT touched.
+      await lifegroupAttendanceRepo.deleteAll();
+      await lifegroupWeekRepo.deleteAll();
+      await lifegroupRepo.deleteAll();
+
+      const [allStudents, settings, existingLeaders] = await Promise.all([
         studentRepo.findAll(),
-        lifegroupRepo.findAll(),
+        settingsRepo.getSettings(),
+        leaderRepo.findAll(),
       ]);
 
       const importId = generateId();
       const now = new Date().toISOString();
-      let groupsAdded = 0;
-      let studentsAdded = 0;
-      let studentsUpdated = 0;
-      let weeksAdded = 0;
-      let rowCount = 0;
+      let groupsAdded = 0, studentsAdded = 0, studentsUpdated = 0, rowCount = 0;
 
-      // Build student lookup
       const studentByName = new Map<string, typeof allStudents[0]>();
-      for (const s of allStudents) {
-        studentByName.set(`${s.firstName.toLowerCase()} ${s.lastName.toLowerCase()}`, s);
-      }
+      for (const s of allStudents) studentByName.set(`${s.firstName.toLowerCase()} ${s.lastName.toLowerCase()}`, s);
 
-      // Process everything in memory first
+      const leaderByName = new Map<string, boolean>();
+      for (const l of existingLeaders) leaderByName.set(l.fullName.toLowerCase(), true);
+      const newLeaders: Parameters<typeof leaderRepo.save>[0][] = [];
+
+      // Global Monday-week registry, deduped across all groups.
+      const weekIdByStart = new Map<string, string>();
+      const ensureWeek = (weekStart: string): string => {
+        let id = weekIdByStart.get(weekStart);
+        if (!id) { id = generateId(); weekIdByStart.set(weekStart, id); }
+        return id;
+      };
+
       const newLifegroups: Parameters<typeof lifegroupRepo.save>[0][] = [];
-      const weeksToCreate: Parameters<typeof lifegroupWeekRepo.save>[0][] = [];
-      const allAttendanceRecords: Parameters<typeof lifegroupAttendanceRepo.saveMany>[0] = [];
+      const attendanceRecords: Parameters<typeof lifegroupAttendanceRepo.saveMany>[0] = [];
+      // studentId -> running grp totals (a student can be in more than one group)
+      const grpByStudent = new Map<string, { obj: Parameters<typeof studentRepo.save>[0]; attended: number; total: number }>();
 
-      // Tracks final grp counts + the student object for each affected student
-      const studentGrpData = new Map<string, {
-        obj: Parameters<typeof studentRepo.save>[0];
-        agg: { attended: number; total: number; metWeeks: number };
-      }>();
+      const LEADER_RE = /\(leader\)/i;
 
       for (const group of groups) {
-        // Find or create lifegroup (fully in-memory, no extra round trip)
-        let lifegroup = allExistingGroups.find((g) => g.fullName === group.name) ?? null;
-        if (!lifegroup) {
-          const { grade, gender } = parseGroupName(group.name);
-          lifegroup = {
-            id: generateId(),
-            fullName: group.name,
-            shortName: group.name.replace(/^[^-]+-\s*/u, '').slice(0, 40).trim(),
-            grade,
-            gender,
-            createdAt: now,
-          };
-          newLifegroups.push(lifegroup);
-          allExistingGroups.push(lifegroup);
-          groupsAdded++;
-        }
+        const { grade: gGrade, gender: gGender } = parseGroupName(group.name);
+        // Lifegroup is always created fresh (we cleared above).
+        const lifegroup = {
+          id: generateId(),
+          fullName: group.name,
+          shortName: group.name.replace(/^[^-]+-\s*/u, '').slice(0, 40).trim(),
+          grade: gGrade,
+          gender: gGender,
+          createdAt: now,
+        };
+        newLifegroups.push(lifegroup);
+        groupsAdded++;
 
-        // Build week objects in memory
-        const weekMap = new Map<string, string>(); // isoDate -> weekId
-        for (let i = 0; i < group.meetings.length; i++) {
-          const isoDate = group.meetings[i]!;
-          const weekId = generateId();
-          weekMap.set(isoDate, weekId);
-          weeksToCreate.push({
-            id: weekId,
-            importId,
-            weekNum: i + 1,
-            weekKey: isoDate,
-            weekStart: isoDate,
-            weekEnd: null,
-          });
-          weeksAdded++;
-        }
+        const weekOfIdx = group.meetings.map((d) => weekStartOf(d));
 
+        // Split roll into leaders ("(leader)" in the name) vs youth members.
+        const youthMembers: typeof group.members = [];
         for (const member of group.members) {
-          rowCount++;
-
-          const nameKey = `${member.first_name.toLowerCase()} ${member.last_name.toLowerCase()}`;
-          const existing = studentByName.get(nameKey) ?? null;
-          let studentId: string;
-
-          if (existing) {
-            studentId = existing.id;
-            studentsUpdated++;
-            if (!studentGrpData.has(studentId)) {
-              studentGrpData.set(studentId, {
-                obj: existing,
-                agg: { attended: existing.grpAttended, total: existing.grpTotal, metWeeks: existing.grpMetWeeks },
+          if (LEADER_RE.test(`${member.first_name} ${member.last_name}`)) {
+            const cleanFirst = member.first_name.replace(/\s*\(leader\)\s*/ig, ' ').replace(/\s+/g, ' ').trim();
+            const cleanLast = member.last_name.replace(/\s*\(leader\)\s*/ig, ' ').replace(/\s+/g, ' ').trim();
+            const fullName = `${cleanFirst} ${cleanLast}`.replace(/\s+/g, ' ').trim();
+            if (!fullName) continue;
+            const key = fullName.toLowerCase();
+            if (!leaderByName.has(key)) {
+              leaderByName.set(key, true);
+              newLeaders.push({
+                id: generateId(),
+                fullName,
+                gender: gGender,
+                grades: (gGrade != null ? [gGrade] : []) as Parameters<typeof leaderRepo.save>[0]['grades'],
+                active: true,
+                createdByGrade: null,
+                createdAt: now,
+                updatedAt: now,
               });
             }
-          } else {
-            studentId = generateId();
-            const newStudent = {
-              id: studentId,
+            continue; // leaders are not youth attendees
+          }
+          youthMembers.push(member);
+        }
+
+        // Weeks the GROUP ran = weeks where >=1 youth member has a non-null mark.
+        const weeksRan = new Set<string>();
+        for (const member of youthMembers) {
+          for (let i = 0; i < member.attendance.length; i++) {
+            const a = member.attendance[i];
+            if (a === null || a === undefined) continue;
+            const w = weekOfIdx[i];
+            if (w) weeksRan.add(w);
+          }
+        }
+        const weeksRanList = [...weeksRan];
+        const totalWeeksRan = weeksRanList.length;
+
+        for (const member of youthMembers) {
+          rowCount++;
+          const nameKey = `${member.first_name.toLowerCase()} ${member.last_name.toLowerCase()}`;
+          let student = studentByName.get(nameKey) ?? null;
+          if (!student) {
+            student = {
+              id: generateId(),
               firstName: member.first_name,
               lastName: member.last_name,
-              gender: 'other' as const,
+              gender: 'other',
               grade: null,
               quad: null,
               mobile: null,
@@ -482,76 +512,81 @@ export function makeImportService(
               createdAt: now,
               updatedAt: now,
             };
+            studentByName.set(nameKey, student);
             studentsAdded++;
-            studentGrpData.set(studentId, { obj: newStudent, agg: { attended: 0, total: 0, metWeeks: 0 } });
-            studentByName.set(nameKey, newStudent);
+          } else {
+            studentsUpdated++;
+          }
+          const studentId = student.id;
+
+          // Weeks this member attended (>=1 "true" in that week).
+          const attendedWeeks = new Set<string>();
+          for (let i = 0; i < member.attendance.length; i++) {
+            if (member.attendance[i] === true) { const w = weekOfIdx[i]; if (w) attendedWeeks.add(w); }
           }
 
-          // Accumulate attendance for this member
-          let memberAttended = 0;
-          let memberTotal = 0;
-          for (let i = 0; i < group.meetings.length; i++) {
-            const att = member.attendance[i];
-            if (att === null || att === undefined) continue;
-            const isoDate = group.meetings[i]!;
-            const weekId = weekMap.get(isoDate);
-            if (!weekId) continue;
-            allAttendanceRecords.push({
+          // One attendance row per week the group ran (binary attended-that-week).
+          for (const w of weeksRanList) {
+            attendanceRecords.push({
               studentId,
-              weekId,
+              weekId: ensureWeek(w),
               lifegroupId: lifegroup.id,
               groupMet: true,
-              attended: att,
+              attended: attendedWeeks.has(w),
             });
-            memberTotal++;
-            if (att) memberAttended++;
           }
 
-          const entry = studentGrpData.get(studentId)!;
-          studentGrpData.set(studentId, {
-            obj: entry.obj,
-            agg: {
-              attended: entry.agg.attended + memberAttended,
-              total: entry.agg.total + memberTotal,
-              metWeeks: entry.agg.metWeeks + memberTotal,
-            },
+          const prev = grpByStudent.get(studentId);
+          const attendedCount = weeksRanList.filter((w) => attendedWeeks.has(w)).length;
+          grpByStudent.set(studentId, {
+            obj: student,
+            attended: (prev?.attended ?? 0) + attendedCount,
+            total: (prev?.total ?? 0) + totalWeeksRan,
           });
         }
       }
 
-      // Build final student save list — one save per student with final grp counts
-      const studentsToSave = [...studentGrpData.values()].map(({ obj, agg }) => ({
-        ...obj,
-        grpAttended: agg.attended,
-        grpTotal: agg.total,
-        grpMetWeeks: agg.metWeeks,
-        updatedAt: now,
-      }));
+      // Week rows from the global registry (chronological week numbers).
+      let weekNum = 0;
+      const weeksToCreate = [...weekIdByStart.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([weekStart, id]) => ({ id, importId, weekNum: ++weekNum, weekKey: weekStart, weekStart, weekEnd: null }));
+      const weeksAdded = weeksToCreate.length;
 
-      // All writes — ordered to satisfy FKs, each step a single bulk SQL statement
-      // 1. Import record first (lifegroup_weeks.import_id FK)
-      await importRepo.save({
-        id: importId, type: 'lifegroup', filename, fileHash: '',
-        rowCount: 0, sessionsAdded: 0, studentsAdded: 0, studentsUpdated: 0,
-        status: 'ok', errorMessage: null, importedAt: now, importedBy: actor.id,
-      });
+      // Students to save: members (new grp counts) + everyone else (grp reset to 0,
+      // replace semantics). At-risk recomputed from svc (unchanged) + new grp.
+      const inGroup = new Set(grpByStudent.keys());
+      const studentsToSave: Parameters<typeof studentRepo.save>[0][] = [];
+      for (const { obj, attended, total } of grpByStudent.values()) {
+        studentsToSave.push({
+          ...obj,
+          grpAttended: attended,
+          grpTotal: total,
+          grpMetWeeks: total,
+          atRiskStatus: computeStatus(obj.svcAttended, obj.svcTotal, attended, total, settings),
+          updatedAt: now,
+        });
+      }
+      for (const s of allStudents) {
+        if (inGroup.has(s.id)) continue;
+        studentsToSave.push({
+          ...s,
+          grpAttended: 0,
+          grpTotal: 0,
+          grpMetWeeks: 0,
+          atRiskStatus: computeStatus(s.svcAttended, s.svcTotal, 0, 0, settings),
+          updatedAt: now,
+        });
+      }
 
-      // 2. New lifegroups, then bulk weeks + students
+      // Writes, FK-safe order.
+      await importRepo.save({ id: importId, type: 'lifegroup', filename, fileHash: '', rowCount: 0, sessionsAdded: 0, studentsAdded: 0, studentsUpdated: 0, status: 'ok', errorMessage: null, importedAt: now, importedBy: actor.id });
+      for (const l of newLeaders) await leaderRepo.save(l);
       await lifegroupRepo.saveMany(newLifegroups);
       await lifegroupWeekRepo.saveMany(weeksToCreate);
       await studentRepo.saveMany(studentsToSave);
-
-      // 3. Attendance (depends on lifegroups + weeks + students)
-      if (allAttendanceRecords.length > 0) {
-        await lifegroupAttendanceRepo.saveMany(allAttendanceRecords);
-      }
-
-      // 4. Update import record with final counts
-      await importRepo.save({
-        id: importId, type: 'lifegroup', filename, fileHash: '',
-        rowCount, sessionsAdded: weeksAdded, studentsAdded, studentsUpdated,
-        status: 'ok', errorMessage: null, importedAt: now, importedBy: actor.id,
-      });
+      if (attendanceRecords.length > 0) await lifegroupAttendanceRepo.saveMany(attendanceRecords);
+      await importRepo.save({ id: importId, type: 'lifegroup', filename, fileHash: '', rowCount, sessionsAdded: weeksAdded, studentsAdded, studentsUpdated, status: 'ok', errorMessage: null, importedAt: now, importedBy: actor.id });
 
       return { importId, type: 'lifegroup', rowCount, groupsAdded, studentsAdded, studentsUpdated, weeksAdded };
     },

@@ -171,7 +171,7 @@ export async function buildContainer(): Promise<Container> {
   const overview = makeOverviewService(students, leaders, connections);
   const atRisk = makeAtRiskService(students, settings);
   const trends = makeTrendsService(students, serviceSessions, serviceAttendance, settings);
-  const importService = makeImportService(students, serviceSessions, serviceAttendance, imports, settings, lifegroups, lifegroupWeeks, lifegroupAttendance);
+  const importService = makeImportService(students, serviceSessions, serviceAttendance, imports, settings, lifegroups, lifegroupWeeks, lifegroupAttendance, leaders);
   const settingsSvc = makeSettingsService(settings, audit);
   const account = makeAccountService(users);
   const admin = makeAdminService(

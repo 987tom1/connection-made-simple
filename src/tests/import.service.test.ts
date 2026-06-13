@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { makeImportService } from '../services/import.service';
 import {
   InMemoryStudentRepository,
+  InMemoryLeaderRepository,
   InMemoryServiceSessionRepository,
   InMemoryServiceAttendanceRepository,
   InMemoryLifegroupRepository,
@@ -25,6 +26,7 @@ function makeRepos() {
     lifegroups: new InMemoryLifegroupRepository(),
     lifegroupWeeks: new InMemoryLifegroupWeekRepository(),
     lifegroupAttendance: new InMemoryLifegroupAttendanceRepository(),
+    leaders: new InMemoryLeaderRepository(),
   };
 }
 
@@ -32,7 +34,7 @@ async function initRepos(r: ReturnType<typeof makeRepos>) {
   await Promise.all([
     r.students.init(), r.sessions.init(), r.attendance.init(),
     r.imports.init(), r.settings.init(),
-    r.lifegroups.init(), r.lifegroupWeeks.init(), r.lifegroupAttendance.init(),
+    r.lifegroups.init(), r.lifegroupWeeks.init(), r.lifegroupAttendance.init(), r.leaders.init(),
   ]);
   // Tiny test datasets: treat any session with >=1 attendee as a valid service
   // (production default is 100). Individual tests can override.
@@ -52,7 +54,7 @@ describe('Import Service', () => {
   it('TC56: ISO date columns are recognised and sessions created', async () => {
     const r = makeRepos();
     await initRepos(r);
-    const svc = makeImportService(r.students, r.sessions, r.attendance, r.imports, r.settings, r.lifegroups, r.lifegroupWeeks, r.lifegroupAttendance);
+    const svc = makeImportService(r.students, r.sessions, r.attendance, r.imports, r.settings, r.lifegroups, r.lifegroupWeeks, r.lifegroupAttendance, r.leaders);
     const rows = [
       { first_name: 'Alice', last_name: 'Smith', gender: 'female', grade: 9,
         '2025-02-07': true, '2025-02-14': false },
@@ -72,7 +74,7 @@ describe('Import Service', () => {
   it('TC57: Excel short-date columns are normalised and imported', async () => {
     const r = makeRepos();
     await initRepos(r);
-    const svc = makeImportService(r.students, r.sessions, r.attendance, r.imports, r.settings, r.lifegroups, r.lifegroupWeeks, r.lifegroupAttendance);
+    const svc = makeImportService(r.students, r.sessions, r.attendance, r.imports, r.settings, r.lifegroups, r.lifegroupWeeks, r.lifegroupAttendance, r.leaders);
     const rows = [
       { first_name: 'Bob', last_name: 'Jones', gender: 'male', grade: 10,
         '7-Feb': true, '14-Feb': true, '21-Feb': false },
@@ -94,7 +96,7 @@ describe('Import Service', () => {
   it('TC58: Excel short-date with year suffix (7-Feb-25) is normalised', async () => {
     const r = makeRepos();
     await initRepos(r);
-    const svc = makeImportService(r.students, r.sessions, r.attendance, r.imports, r.settings, r.lifegroups, r.lifegroupWeeks, r.lifegroupAttendance);
+    const svc = makeImportService(r.students, r.sessions, r.attendance, r.imports, r.settings, r.lifegroups, r.lifegroupWeeks, r.lifegroupAttendance, r.leaders);
     const rows = [
       { first_name: 'Carol', last_name: 'White', gender: 'female', grade: 8,
         '7-Feb-25': true, '14-Feb-25': false },
@@ -110,7 +112,7 @@ describe('Import Service', () => {
   it('TC59: date_of_birth column is saved to student', async () => {
     const r = makeRepos();
     await initRepos(r);
-    const svc = makeImportService(r.students, r.sessions, r.attendance, r.imports, r.settings, r.lifegroups, r.lifegroupWeeks, r.lifegroupAttendance);
+    const svc = makeImportService(r.students, r.sessions, r.attendance, r.imports, r.settings, r.lifegroups, r.lifegroupWeeks, r.lifegroupAttendance, r.leaders);
     const rows = [
       { first_name: 'Dana', last_name: 'Lee', gender: 'female', grade: 11,
         date_of_birth: '2007-06-15', '2025-02-07': true },
@@ -124,7 +126,7 @@ describe('Import Service', () => {
   it('TC60: birthday alias column is saved to student', async () => {
     const r = makeRepos();
     await initRepos(r);
-    const svc = makeImportService(r.students, r.sessions, r.attendance, r.imports, r.settings, r.lifegroups, r.lifegroupWeeks, r.lifegroupAttendance);
+    const svc = makeImportService(r.students, r.sessions, r.attendance, r.imports, r.settings, r.lifegroups, r.lifegroupWeeks, r.lifegroupAttendance, r.leaders);
     const rows = [
       { first_name: 'Eve', last_name: 'Brown', gender: 'female', grade: 7,
         birthday: '2011-03-22', '2025-02-07': false },
@@ -138,7 +140,7 @@ describe('Import Service', () => {
   it('TC61: parent_phone column is saved to student', async () => {
     const r = makeRepos();
     await initRepos(r);
-    const svc = makeImportService(r.students, r.sessions, r.attendance, r.imports, r.settings, r.lifegroups, r.lifegroupWeeks, r.lifegroupAttendance);
+    const svc = makeImportService(r.students, r.sessions, r.attendance, r.imports, r.settings, r.lifegroups, r.lifegroupWeeks, r.lifegroupAttendance, r.leaders);
     const rows = [
       { first_name: 'Frank', last_name: 'Clark', gender: 'male', grade: 9,
         parent_phone: '0412345678', '2025-02-07': true },
@@ -152,7 +154,7 @@ describe('Import Service', () => {
   it('TC62: guardian_phone alias is saved to student', async () => {
     const r = makeRepos();
     await initRepos(r);
-    const svc = makeImportService(r.students, r.sessions, r.attendance, r.imports, r.settings, r.lifegroups, r.lifegroupWeeks, r.lifegroupAttendance);
+    const svc = makeImportService(r.students, r.sessions, r.attendance, r.imports, r.settings, r.lifegroups, r.lifegroupWeeks, r.lifegroupAttendance, r.leaders);
     const rows = [
       { first_name: 'Grace', last_name: 'Hall', gender: 'female', grade: 12,
         guardian_phone: '0487654321', '2025-02-07': false },
@@ -166,7 +168,7 @@ describe('Import Service', () => {
   it('TC63: re-importing a known student updates their dateOfBirth', async () => {
     const r = makeRepos();
     await initRepos(r);
-    const svc = makeImportService(r.students, r.sessions, r.attendance, r.imports, r.settings, r.lifegroups, r.lifegroupWeeks, r.lifegroupAttendance);
+    const svc = makeImportService(r.students, r.sessions, r.attendance, r.imports, r.settings, r.lifegroups, r.lifegroupWeeks, r.lifegroupAttendance, r.leaders);
     // First import — no birthday
     await svc.importServiceCsv(ADMIN, [
       { first_name: 'Harry', last_name: 'Potter', gender: 'male', grade: 8, '2025-02-07': true },
@@ -190,7 +192,7 @@ describe('Import Service', () => {
   it('TC64: import with no optional columns succeeds without errors', async () => {
     const r = makeRepos();
     await initRepos(r);
-    const svc = makeImportService(r.students, r.sessions, r.attendance, r.imports, r.settings, r.lifegroups, r.lifegroupWeeks, r.lifegroupAttendance);
+    const svc = makeImportService(r.students, r.sessions, r.attendance, r.imports, r.settings, r.lifegroups, r.lifegroupWeeks, r.lifegroupAttendance, r.leaders);
     const rows = [
       { first_name: 'Ivy', last_name: 'Green', gender: 'female', grade: 7, '2025-03-07': true },
       { first_name: 'Jack', last_name: 'Blue', gender: 'male', grade: 7, '2025-03-07': false },
@@ -210,7 +212,7 @@ describe('Import Service', () => {
     // sessions are valid.
     await r.settings.updateSettings({ serviceMinAttendance: 5 });
     // Import 5 sessions: 4 with 12 attending, 1 sub-floor with 1 attending
-    const svc = makeImportService(r.students, r.sessions, r.attendance, r.imports, r.settings, r.lifegroups, r.lifegroupWeeks, r.lifegroupAttendance);
+    const svc = makeImportService(r.students, r.sessions, r.attendance, r.imports, r.settings, r.lifegroups, r.lifegroupWeeks, r.lifegroupAttendance, r.leaders);
     // Create 12 students first
     const names = ['A','B','C','D','E','F','G','H','I','J','K','L'];
     const baseRows = names.map(n => ({
