@@ -3231,7 +3231,7 @@ async function saveSettings() {
 async function adminAction(path, msg) {
   try {
     await API.post(path, {}); Cache.clear(); toast(msg);
-    if (path === '/admin/reset' && window.CA) CA.reset(); /*CA-HOOK*/
+    if ((path === '/admin/reset' || path === '/admin/new-year') && window.CA) CA.reset(); /*CA-HOOK*/
     go('home');
   } catch (e) { toast(e.message); }
 }
