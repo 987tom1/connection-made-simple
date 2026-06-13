@@ -3134,12 +3134,12 @@ async function renderAdminView(settings, users) {
         <div class="destructive-header">Destructive Actions</div>
         <div style="display:flex;flex-direction:column;gap:10px">
           <div>
-            <button class="btn btn-secondary btn-full" onclick="if(confirm('Start a new year? This permanently deletes all students, connections, service and lifegroup data. Leaders and accounts are kept. Continue?'))adminAction('/admin/new-year','✓ New year started')">New Year</button>
-            <div class="help-text" style="margin-top:4px">Clears students + connections, keeps accounts and leaders</div>
+            <button class="btn btn-secondary btn-full" onclick="if(confirm('Clear all service & lifegroup data? Students (grade, age, phone), their connections and leaders are kept. Continue?'))adminAction('/admin/clear-service-group','✓ Service/group data cleared')">Clear Service/Group Data</button>
+            <div class="help-text" style="margin-top:4px">Clears all service + lifegroup attendance; keeps students, connections, leaders &amp; accounts</div>
           </div>
           <div>
-            <button class="btn btn-danger btn-full" onclick="if(confirm('RESET ALL DATA? This cannot be undone.'))adminAction('/admin/reset','✓ Full reset complete')">Full Reset</button>
-            <div class="help-text" style="margin-top:4px">Clears everything except user accounts</div>
+            <button class="btn btn-danger btn-full" onclick="if(confirm('RESET ALL DATA? This deletes students, leaders, connections and all attendance. This cannot be undone.'))adminAction('/admin/reset','✓ Full reset complete')">Full Reset</button>
+            <div class="help-text" style="margin-top:4px">Clears students, leaders, connections &amp; all data (keeps accounts)</div>
           </div>
         </div>
       </div>
@@ -3231,7 +3231,7 @@ async function saveSettings() {
 async function adminAction(path, msg) {
   try {
     await API.post(path, {}); Cache.clear(); toast(msg);
-    if ((path === '/admin/reset' || path === '/admin/new-year') && window.CA) CA.reset(); /*CA-HOOK*/
+    if ((path === '/admin/reset' || path === '/admin/clear-service-group') && window.CA) CA.reset(); /*CA-HOOK*/
     go('home');
   } catch (e) { toast(e.message); }
 }

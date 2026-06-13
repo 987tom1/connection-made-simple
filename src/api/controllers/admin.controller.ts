@@ -16,9 +16,9 @@ export function makeAdminController(deps: { admin: AdminService }) {
       return { ok: true };
     },
 
-    async newYear(req: HttpRequest) {
+    async clearServiceGroupData(req: HttpRequest) {
       if (!req.ctx) throw new UnauthorizedError();
-      await deps.admin.newYear(req.ctx);
+      await deps.admin.clearServiceGroupData(req.ctx);
       return { ok: true };
     },
 

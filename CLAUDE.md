@@ -62,7 +62,7 @@ Seed data only runs when `PERSISTENCE=memory`. Production uses `PERSISTENCE=supa
 | Lifegroup stats | `GET /lifegroups/stats` (per-lifegroup/grade/quad/overall, current + previous term + weekly series) |
 | Import | `POST /import/csv`, `GET /import/history` |
 | Settings | `GET/PATCH /settings` |
-| Admin | `POST /admin/reset`, `POST /admin/save-defaults`, `POST /admin/new-year`, `GET /admin/audit` |
+| Admin | `POST /admin/reset` (clears students+leaders+connections+all data), `POST /admin/clear-service-group` (clears service/lifegroup data, **keeps** students+connections+leaders, resets student aggregates), `POST /admin/save-defaults`, `GET /admin/audit` |
 | Accounts | `GET/POST /accounts/users`, `PATCH /accounts/users/:id`, etc. |
 
 ## Role hierarchy

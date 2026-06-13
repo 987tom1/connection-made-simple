@@ -17,8 +17,8 @@ export interface Student {
   grpAttended: number;
   grpTotal: number;
   grpMetWeeks: number;
-  // Previous-term attendance snapshot (copied from current values at new-year rollover)
-  // Used to show decline trends on the at-risk screen.
+  // Previous-term attendance snapshot — populated at import time by the term split
+  // (see aggregates.ts). Used to show this-term vs last-term trends.
   prevSvcAttended: number;
   prevSvcTotal: number;
   prevGrpAttended: number;

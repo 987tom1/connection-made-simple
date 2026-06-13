@@ -28,7 +28,7 @@ export interface AdminAuditRow {
 export interface AdminService {
   reset(actor: Actor): Promise<void>;
   saveDefaults(actor: Actor): Promise<void>;
-  newYear(actor: Actor): Promise<void>;
+  clearServiceGroupData(actor: Actor): Promise<void>;
   getAuditLog(actor: Actor, limit?: number): Promise<AdminAuditRow[]>;
 }
 
@@ -63,8 +63,8 @@ export function makeAdminService(
 ): AdminService {
   // Wipe all attendance/connection data in FK-safe order (children before
   // parents). Each call is a single bulk DELETE, so this stays well within the
-  // serverless function budget regardless of dataset size. Optionally also
-  // clears leaders (full reset) vs. retaining them (new-year rollover).
+  // serverless function budget regardless of dataset size. `includeLeaders` is
+  // the full-reset path (clears students + leaders); used by reset().
   async function wipeData(opts: { includeLeaders: boolean }): Promise<void> {
     await connections.deleteAll();
     await serviceAttendance.deleteAll();
@@ -100,13 +100,33 @@ export function makeAdminService(
       await writeAudit(audit, actor, 'save-defaults', `Saved ${allUsers.length} accounts and ${allLeaders.length} leaders as defaults`);
     },
 
-    async newYear(actor) {
+    async clearServiceGroupData(actor) {
       assertCan(actor, 'admin:manage');
-      // Fresh start for a new year: remove students, connections, service and
-      // lifegroup data. Leaders and accounts are retained (use Save Defaults
-      // first if you want to snapshot them).
-      await wipeData({ includeLeaders: false });
-      await writeAudit(audit, actor, 'new-year', 'New year started — students, connections, services and lifegroup data cleared; leaders and accounts retained');
+      // Clear ALL service + lifegroup data but KEEP students (grade, age, phone),
+      // their connections, leaders and accounts. Each student's attendance
+      // aggregates are reset to 0 so the cleared data isn't still shown. Deletes
+      // are ordered children-before-parents (sessions/weeks before their imports).
+      await serviceAttendance.deleteAll();
+      await lifegroupAttendance.deleteAll();
+      await serviceSessions.deleteAll();
+      await lifegroupWeeks.deleteAll();
+      await lifegroups.deleteAll();
+      await imports.deleteAll();
+
+      const allStudents = await students.findAll();
+      const now = new Date().toISOString();
+      const reset = allStudents.map((s) => ({
+        ...s,
+        svcAttended: 0, svcTotal: 0,
+        grpAttended: 0, grpTotal: 0, grpMetWeeks: 0,
+        prevSvcAttended: 0, prevSvcTotal: 0,
+        prevGrpAttended: 0, prevGrpTotal: 0,
+        atRiskStatus: 'new' as const,
+        updatedAt: now,
+      }));
+      if (reset.length > 0) await students.saveMany(reset);
+
+      await writeAudit(audit, actor, 'new-year', 'Cleared all service & lifegroup data; students, connections, leaders and accounts retained');
     },
 
     async getAuditLog(actor, limit = 20) {

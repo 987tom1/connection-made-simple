@@ -87,7 +87,7 @@ export function buildRoutes(services: Services): Route[] {
     // ----- Admin -----
     { method: 'POST', path: '/admin/reset',         auth: true, handler: (r) => admin.reset(r) },
     { method: 'POST', path: '/admin/save-defaults', auth: true, handler: (r) => admin.saveDefaults(r) },
-    { method: 'POST', path: '/admin/new-year',      auth: true, handler: (r) => admin.newYear(r) },
+    { method: 'POST', path: '/admin/clear-service-group', auth: true, handler: (r) => admin.clearServiceGroupData(r) },
     { method: 'GET',  path: '/admin/audit',         auth: true, handler: (r) => admin.auditLog(r) },
 
     // ----- Account management -----
