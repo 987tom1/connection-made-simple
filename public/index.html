@@ -3440,17 +3440,18 @@ function esc(x){return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'
 // ---------- async adapter ----------
 async function load(force){
   if(D&&!force)return D;
-  const[stu,tr,se]=await Promise.all([
+  const[stu,tr,se,lg]=await Promise.all([
     API.get('/students').catch(()=>[]),
     API.get('/trends').catch(()=>null),
     API.get('/settings').catch(()=>({})),
+    API.get('/lifegroups/stats').catch(()=>null),
   ]);
   D={
     students:(stu||[]).map(s=>({id:s.id,fn:s.firstName||'',ln:s.lastName||'',gender:s.gender,grade:s.grade,quad:s.quad,
       sA:s.svcAttended||0,sT:s.svcTotal||0,gA:s.grpAttended||0,gT:s.grpTotal||0,
       psA:s.prevSvcAttended||0,psT:s.prevSvcTotal||0,pgA:s.prevGrpAttended||0,pgT:s.prevGrpTotal||0,
       ph:s.mobile||'',pp:s.parentPhone||''})),
-    trends:tr,settings:se||{},
+    trends:tr,settings:se||{},lgStats:lg,
   };
   return D;
 }
@@ -3678,7 +3679,7 @@ function rHub(){
   const tiles=[
     ['ca-overview',icS('pie'),'Overview','Term health at a glance'],
     ['ca-funnel',icS('chart'),'Funnel & Conversion','Where people drop off'],
-    ['ca-groups',icS('group'),'Lifegroup Health',m.groups.length+' cohorts · '+decl+' declining'],
+    ['ca-groups',icS('group'),'Lifegroup Health',lifegroupRows().length+' lifegroups · per-group'],
     ['ca-people',icS('users'),'People',m.people.filter(p=>p.stage>0).length+' tracked · search'],
     ['ca-data',icS('upload'),'Data','2 synced · 4 uploads'+(seedOn()?' · seed':'')],
     ['ca-deck',icS('deck'),'Build Presentation','Exec deck · new tab'],
@@ -3688,7 +3689,7 @@ function rHub(){
 }
 function rOverview(){
   const m=model(),k=m.kpis;
-  const dl=v=>v>0?'<div class="ca-dlt up">▲ +'+v+'pp vs prev term</div>':v<0?'<div class="ca-dlt dn">▼ '+v+'pp vs prev term</div>':'<div class="ca-dlt fl">− level vs prev term</div>';
+  const dl=v=>v>0?'<div class="ca-dlt up">▲ +'+v+'% vs prev term</div>':v<0?'<div class="ca-dlt dn">▼ '+v+'% vs prev term</div>':'<div class="ca-dlt fl">− level vs prev term</div>';
   const at=k.actTrend==='rising'?'<div class="ca-dlt up">▲ rising across term</div>':k.actTrend==='declining'?'<div class="ca-dlt dn">▼ declining across term</div>':'<div class="ca-dlt fl">− steady across term</div>';
   let b=tabs('ca-overview');
   b+='<div class="stat-grid">'
@@ -3782,36 +3783,50 @@ function gChip(g){
   return'<span class="chip c-neutral">− Stable</span>';
 }
 function gfilter(v){GF=GF===v?'':v;rerender();}
-function rGroups(){
-  const m=model();
-  let gs=m.groups.slice();
-  if(GF)gs=gs.filter(g=>g.trend===GF);
-  gs.sort((a,b)=>Math.abs(b.trendPct)-Math.abs(a.trendPct)||a.va-b.va);
-  const partPct=m.kpis.act?Math.round(m.kpis.inLG/m.kpis.act*100):0;
-  const actLG=D.students.filter(s=>s.gA>0);
-  const vaAll=actLG.length?+(D.students.reduce((t,s)=>t+s.gA,0)/actLG.length).toFixed(1):0;
-  let b=tabs('ca-groups');
-  b+='<div class="stat-grid" style="grid-template-columns:repeat(3,1fr)">'
-    +'<div class="stat"><div class="stat-v" style="font-size:1.25rem">'+partPct+'%</div><div class="stat-l">Participation</div></div>'
-    +'<div class="stat"><div class="stat-v" style="font-size:1.25rem">'+vaAll+'</div><div class="stat-l">Visits / active</div></div>'
-    +'<div class="stat"><div class="stat-v" style="font-size:1.25rem">'+m.groups.length+'</div><div class="stat-l">Cohorts</div></div>'
-    +'</div>';
-  b+='<div class="ca-fch">'
-    +'<span class="chip '+(GF==='rising'?'c-success':'c-neutral')+'" style="cursor:pointer" onclick="CA.gfilter(\'rising\')">▲ Rising</span>'
-    +'<span class="chip '+(GF==='declining'?'c-danger':'c-neutral')+'" style="cursor:pointer" onclick="CA.gfilter(\'declining\')">▼ Declining</span>'
-    +(GF?'<span style="font-size:.62rem;color:var(--ca-muted)">'+gs.length+' cohort'+(gs.length===1?'':'s')+'</span>':'')
-    +'</div>';
-  if(!gs.length)b+='<div class="card" style="text-align:center;color:var(--ca-muted);font-size:.78rem">No '+GF+' cohorts</div>';
-  for(const g of gs){
-    const col=g.trend==='declining'?'var(--ca-rose)':g.loose?'var(--ca-amber)':g.trend==='rising'?'var(--ca-green)':'var(--ca-teal)';
-    b+='<div class="card" style="cursor:pointer" onclick="CA.showGroup(\''+g.id+'\')"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div><div style="font-size:.82rem;font-weight:700">'+g.name+'</div><div style="font-size:.62rem;color:var(--ca-muted)">'+g.enrolled+' enrolled · '+g.active+' active · '+g.va+' visits/active</div></div>'+gChip(g)+'</div><div class="ca-gb"><div class="ca-gbf" style="width:'+Math.round(g.breadth*100)+'%;background:'+col+'"></div></div></div>';
+let LGQ=''; // lifegroup-health quad filter
+function lgfilter(q){LGQ=LGQ===q?'':q;rerender();}
+// Flat per-lifegroup rows from /lifegroups/stats (gendered, tagged with quad).
+function lifegroupRows(){
+  const ls=(D.lgStats&&D.lgStats.byQuad)||[];
+  const out=[];
+  for(const q of ls)for(const g of (q.grades||[]))for(const lg of (g.lifegroups||[])){
+    const c=lg.current||{},p=lg.previous||{};
+    out.push({id:lg.lifegroupId,name:lg.name,quad:q.quad,grade:lg.grade,
+      enrolled:c.members||0,unique:c.uniqueAttenders||0,
+      vpu:c.uniqueAttenders?+((c.totalVisits||0)/c.uniqueAttenders).toFixed(1):0,
+      run:c.weeksRan||0,avgT:c.avgPerWeek||0,avgL:p.avgPerWeek||0});
   }
+  return out;
+}
+function rGroups(){
+  model();
+  let rows=lifegroupRows();
+  if(LGQ)rows=rows.filter(r=>r.quad===LGQ);
+  rows.sort((a,b)=>b.unique-a.unique||a.name.localeCompare(b.name));
+  let b=tabs('ca-groups');
+  // Quad filter buttons.
+  b+='<div class="ca-fch">'
+    +'<span class="chip '+(LGQ===''?'c-accent':'c-neutral')+'" style="cursor:pointer" onclick="CA.lgfilter(\'\')">All</span>'
+    +Object.keys(QLBL).map(q=>'<span class="chip '+(LGQ===q?'c-accent':'c-neutral')+'" style="cursor:pointer" onclick="CA.lgfilter(\''+q+'\')">'+(QLBL[q]||q)+'</span>').join('')
+    +'</div>';
+  if(!rows.length){b+='<div class="card" style="text-align:center;color:var(--ca-muted);font-size:.78rem">No lifegroups'+(LGQ?' in this quad':' yet')+'</div>';caShell(b,'ca-groups');return;}
+  const rc='text-align:right;padding:7px 8px;white-space:nowrap';
+  b+='<div class="card" style="padding:0;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.72rem">'
+    +'<thead><tr style="color:var(--ca-muted)"><th style="text-align:left;padding:8px 10px">Lifegroup</th>'
+    +['Enrolled','Unique','Visits/unique','Run','Avg this','Avg last'].map(h=>'<th style="'+rc+'">'+h+'</th>').join('')
+    +'</tr></thead><tbody>';
+  for(const r of rows){
+    b+='<tr style="border-top:1px solid var(--ca-line)"><td style="padding:7px 10px;font-weight:600">'+esc(r.name)+'</td>'
+      +'<td style="'+rc+'">'+r.enrolled+'</td><td style="'+rc+'">'+r.unique+'</td><td style="'+rc+'">'+r.vpu+'</td>'
+      +'<td style="'+rc+'">'+r.run+'</td><td style="'+rc+'">'+r.avgT+'</td><td style="'+rc+'">'+r.avgL+'</td></tr>';
+  }
+  b+='</tbody></table></div>';
   caShell(b,'ca-groups');
 }
 function showGroup(id){
   const g=model().groups.find(x=>x.id===id);if(!g)return;
   let h='<div style="font-size:1rem;font-weight:800;margin-bottom:6px">'+g.name+'</div>'
-    +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px"><span style="font-size:.72rem;color:var(--ca-muted)">'+g.enrolled+' enrolled · '+g.active+' active · '+g.va+' visits/active · '+g.weeksRun+' weeks run</span>'+gChip(g)+'</div>';
+    +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px"><span style="font-size:.72rem;color:var(--ca-muted)">'+g.enrolled+' enrolled · '+g.active+' active · '+g.va+' visits/unique · '+g.weeksRun+' weeks run</span>'+gChip(g)+'</div>';
   h+='<div style="max-height:46vh;overflow-y:auto;-webkit-overflow-scrolling:touch;border-top:1px solid var(--ca-line)">';
   for(const s of g.mem.slice().sort((a,b)=>b.gA-a.gA)){
     h+='<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--ca-line)"><div style="font-size:.8rem;font-weight:600">'+esc(s.fn+' '+s.ln)+'</div><div style="font-size:.72rem;color:var(--ca-muted)">'+s.gA+'/'+s.gT+' lifegroups · '+s.sA+'/'+s.sT+' Fridays</div></div>';
@@ -4021,10 +4036,10 @@ function buildDeck(){
     return '<div class="vizwrap"><svg class="spark" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet"><polyline points="'+pts+'" fill="none" stroke="#1d4ed8" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>'+dots+'</svg><p class="vcap">Friday attendance · '+vals.length+' sessions · outliers excluded by the server</p></div>';
   };
   const lgTableViz=()=>{
-    if(!m.groups.length)return '<p class="muted">No lifegroup data.</p>';
-    const arrow=g=>g.trend==='rising'?'<span class="up">▲ +'+g.trendPct+'%</span>':g.trend==='declining'?'<span class="down">▼ '+g.trendPct+'%</span>':g.loose?'<span class="down">loose</span>':'<span class="flat">—</span>';
-    const rows=m.groups.slice().sort((a,b)=>b.va-a.va).map(g=>'<tr><td>'+esc(g.name)+'</td><td class="r">'+g.enrolled+'</td><td class="r">'+g.active+'</td><td class="r">'+g.va+'</td><td>'+arrow(g)+'</td></tr>').join('');
-    return '<table class="lgt"><thead><tr><th>Cohort</th><th class="r">Enrolled</th><th class="r">Active</th><th class="r">Visits/active</th><th>Trend</th></tr></thead><tbody>'+rows+'</tbody></table>';
+    const rows=lifegroupRows().sort((a,b)=>b.unique-a.unique||a.name.localeCompare(b.name));
+    if(!rows.length)return '<p class="muted">No lifegroup data.</p>';
+    const tr=rows.map(r=>'<tr><td>'+esc(r.name)+'</td><td class="r">'+r.enrolled+'</td><td class="r">'+r.unique+'</td><td class="r">'+r.vpu+'</td><td class="r">'+r.run+'</td><td class="r">'+r.avgT+'</td><td class="r">'+r.avgL+'</td></tr>').join('');
+    return '<table class="lgt"><thead><tr><th>Lifegroup</th><th class="r">Enrolled</th><th class="r">Unique</th><th class="r">Visits/unique</th><th class="r">Run</th><th class="r">Avg this</th><th class="r">Avg last</th></tr></thead><tbody>'+tr+'</tbody></table>';
   };
   const tilesViz=()=>{
     const tile=(n,l)=>'<div class="tile ok"><b>'+n+'</b><span>'+esc(l)+'</span></div>';
@@ -4033,7 +4048,7 @@ function buildDeck(){
   const bigNumViz=(num,cap)=>'<div class="bignum"><b>'+num+'</b><span>'+esc(cap)+'</span></div>';
   const quadFunnelViz=()=>{
     const QUADS=[['g79','Girls Yr 7–9'],['b79','Boys Yr 7–9'],['g1012','Girls Yr 10–12'],['b1012','Boys Yr 10–12']];
-    const RLBL=['First contact','Came to Friday','Regular','In a lifegroup','Student Team'];
+    const RLBL=['First contact','Came to Friday','Regular','Attended a lifegroup','Student Team'];
     const cells=QUADS.map(([q,ql])=>{
       const qp=m.people.filter(p=>p.s&&p.s.quad===q);
       if(!qp.length)return '<div class="qfcell"><div class="qfl">'+esc(ql)+'</div><p class="muted" style="font-size:.82rem">No data</p></div>';
@@ -4121,7 +4136,7 @@ function buildDeck(){
       ]},
     {kicker:'Deepen',
       title:'Lifegroups: where attendance becomes belonging',
-      core:partPct+'% of active youth are in a lifegroup across '+m.groups.length+' cohorts'+(strongLg&&weakLg?'. '+strongLg.name+' is our strongest at '+strongLg.va+' visits/active; '+weakLg.name+' most needs support at '+weakLg.va+'.':'.'),
+      core:partPct+'% of active youth attended a lifegroup (at least once this term) across '+lifegroupRows().length+' lifegroups'+(strongLg&&weakLg?'. '+strongLg.name+' is our strongest at '+strongLg.va+' visits/unique; '+weakLg.name+' most needs support at '+weakLg.va+'.':'.'),
       body:lgTableViz(),
       notes:'Reframe lifegroups as the destination, not a programme. Trend is the term-over-term attendance-rate change for students we hold both terms for. Celebrate the strong cohort publicly; offer the weak one help privately — '+gDecl+' cohort'+(gDecl===1?' is':'s are')+' declining.',
       vizSuggest:['Slope chart: attendance rate last term → this term per cohort','Bar of visits-per-active, sorted, with the weakest flagged'],
@@ -4163,7 +4178,7 @@ function buildDeck(){
       title:'How these numbers are built',
       core:'So you can trust them — and challenge them.',
       args:[
-        'Ladder: 1 First contact (connect/decision record) · 2 Came to Friday · 3 Regular (≥'+rrPct+'% of Fridays) · 4 In a lifegroup · 5 Student Team. Each rung counts people at that stage or beyond.',
+        'Ladder: 1 First contact (connect/decision record) · 2 Came to Friday · 3 Regular (≥'+rrPct+'% of Fridays) · 4 Attended a lifegroup (≥1 this term) · 5 Student Team. Each rung counts people at that stage or beyond.',
         'Personal trend compares each student’s current-term attendance rate with their previous-term rate (students tracked both terms); cohort trend does the same per grade × gender.',
         'Fridays and lifegroups are read live from this platform’s API — they cannot go stale. '+currency,
         'Names in uploads are matched to platform students; unmatched names are tracked as audit-only people. Uploads are stored only on this device.'
@@ -4314,7 +4329,7 @@ async function render(p){
 }
 return{render,reset,stale,seedOn,dismissWarn,
   model:async()=>{await load();restore();return model();},
-  fquad,gfilter,fopen,flowStats,_parseFlows:parseFlows,pick,upload,showPerson,showGroup,exportMenu,exportQuad,buildDeck,
+  fquad,gfilter,lgfilter,fopen,flowStats,_parseFlows:parseFlows,pick,upload,showPerson,showGroup,exportMenu,exportQuad,buildDeck,
   pq,pstage,pquad,pdec,pmore};
 })();
 window.CA=CA;

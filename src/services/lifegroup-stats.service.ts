@@ -18,6 +18,8 @@ export interface TermAgg {
   uniqueAttenders: number; // distinct individuals who attended >=1 week this term
   avgPerWeek: number;      // mean individuals attending each week the scope ran
   weeksRan: number;        // distinct weeks the scope ran this term
+  members: number;         // distinct students the scope ran for this term (enrolled)
+  totalVisits: number;     // total attended visits this term (sum over weeks of attenders)
 }
 
 export interface LifegroupStat {
@@ -150,11 +152,14 @@ export function makeLifegroupStatsService(
         const weeksRan = new Set<string>();
         const attendersByWeek = new Map<string, Set<string>>();
         const unique = new Set<string>();
+        const members = new Set<string>();
         for (const row of rows) {
           if (!groupScope(row.lifegroupId)) continue;
           if (classifyDate(row.weekStart, terms) !== term) continue;
           weeksRan.add(row.weekStart);
-          if (!row.attended || !studentFilter(row)) continue;
+          if (!studentFilter(row)) continue;
+          members.add(row.studentId); // enrolled: the group ran for them this term
+          if (!row.attended) continue;
           unique.add(row.studentId);
           let set = attendersByWeek.get(row.weekStart);
           if (!set) { set = new Set(); attendersByWeek.set(row.weekStart, set); }
@@ -167,6 +172,8 @@ export function makeLifegroupStatsService(
           uniqueAttenders: unique.size,
           avgPerWeek: n > 0 ? Math.round(sum / n) : 0,
           weeksRan: n,
+          members: members.size,
+          totalVisits: sum,
         };
       };
 
