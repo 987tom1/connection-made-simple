@@ -96,6 +96,12 @@ search + the At-Risk screen use **dynamic per-stream qualifiers** computed clien
 (`attendQual`/`qualChips` in the SPA): rising/declining (±5pts vs last term), stopped (0 this
 term), combined into rising / mixed / declining / stopped.
 
+**Connection counts:** only students who **attended** a service or lifegroup in the current
+OR previous term are "connectable" (`_hasAttended` in the SPA; `attended` in `overview.service`).
+Never-attended students are excluded from connected / unconnected / total counts (so they're
+never "unconnected") and hidden from the quick-add picker's default view — but stay **searchable**
+to add, and still appear if already assigned.
+
 ## Quads
 
 Four quads group students by age bracket + gender:
@@ -128,8 +134,20 @@ is the default, previous is shown as a comparison.
   login still sees ministry-wide unique + average there); `byQuad`/`byGrade` stay
   scoped. The "Improving/Declining" badge is the trend WITHIN the current term.
 - `GET /lifegroups/stats` (`lifegroup-stats.service.ts`) is the per-lifegroup /
-  grade / quad / overall source: unique attenders, mean individuals attending each
-  week the scope ran, weeks ran — current + previous term, role-scoped.
+  grade / quad / overall source — current + previous term, role-scoped. Each
+  `TermAgg` has `uniqueAttenders`, `avgPerWeek`, `weeksRan`, `members` (enrolled =
+  distinct students the scope ran for), `totalVisits` (Σ weekly attenders). Notes:
+  - **Average denominator = VALID SERVICES in the term** (not weeks lifegroups ran):
+    `avgPerWeek = totalVisits / (valid Fridays meeting the floor that term)`, falling
+    back to `weeksRan` when there's no service data. Normalises group avg/wk to the
+    service calendar.
+  - Each `QuadLifegroupStat` carries a **gendered** per-grade breakdown (`q.grades`);
+    the SPA uses that for the director drilldowns (not the combined top-level `byGrade`).
+  - **Deliberate attribution:** per-LIFEGROUP counts ALL its attenders; per-grade /
+    quad / overall count only attenders whose OWN `grade`/`quad` matches. So a single
+    lifegroup can show more unique attenders than its grade total when it draws in
+    other-grade / no-grade students — kept on purpose as a "reaching beyond its year"
+    signal. Don't "fix" it to roll up by the group's grade.
 
 ## Key design rules
 
@@ -178,7 +196,7 @@ CORS_ORIGINS=*
 
 `public/index.html` — phone-first SPA that calls the Express backend via relative API paths. Kept aligned to `../youth app demo/allocation-platform.html` (the canonical offline demo, deployed at https://yc-camp-demo.vercel.app). See `../youth app demo/CLAUDE.md` for demo UI conventions.
 
-**Connection Audit module** is ported into the SPA as a delimited block (`/* ── CA MODULE … ── */`); remove = delete blocks + grep-delete `/*CA-HOOK*/` lines. Data via `CA.load()` → `/students` + `/trends` + `/settings`.
+**Connection Audit module** is ported into the SPA as a delimited block (`/* ── CA MODULE … ── */`); remove = delete blocks + grep-delete `/*CA-HOOK*/` lines. Data via `CA.load()` → `/students` + `/trends` + `/settings` + `/lifegroups/stats`. Lifegroup Health is a **per-lifegroup** table (quad filter buttons; columns enrolled/unique/visits-per-unique/run/avg-this/avg-last) built from `/lifegroups/stats`; the per-quad funnel is the integration ladder; audit uploads start EMPTY (no demo seed) and are cleared by Full Reset AND Clear Service/Group Data via `/*CA-HOOK*/`.
 
 ### SPA architecture
 
@@ -193,10 +211,26 @@ to top only when navigating to a DIFFERENT page (`S.page !== _lastRenderedPage`)
 **preserves** `window.scrollY` on same-page re-renders, so opening a dropdown doesn't
 jump to the top. Don't re-add per-page `.pg.scrollTop` save/restore — it's a no-op.
 
-**Shared display helpers** (defined near `quadChip`): `termRow(label, curA, curT, prevA,
-prevT)` renders "This term … · Last term …" (used on student search, My Students,
-at-risk); `isRising(s)` flags students whose svc/grp rate improved ≥5pts vs last term
-(at-risk "Rising" group); `fmtPhone`/`callPhone`/`phoneLink` format numbers (space
+**Collapsible dropdowns** — Home/Trends quad→grade→lifegroup dropdowns are **pre-rendered
+hidden and toggled in-DOM** (no re-render), like the At-Risk sections. Pattern: a `.drop`
+card with a `.drop-head` (`onclick="_drop('uniqueId')"`, chevron `.drop-chev`) and a
+`.drop-body` (hidden until the card gets `.open`); direct-child CSS selectors so nesting
+works. This avoids the loading-spinner flash when the 30s cache has expired. `_hAttTile`
+(opts.dropId) and `_lgGradeBlock(g, showPrev, gsfx, id)` emit this structure. Don't bring
+back expand-state vars / `renderHome()`/`renderTrends()` toggles.
+
+**Stale-render guard** — `renderHome`/`renderTrends` capture `S.page` before their
+`await Promise.all(...)` and bail before the final `setApp` if `S.page` changed, so a slow
+`/lifegroups/stats` on a page you've left can't overwrite the new page (the stuck-spinner /
+wrong-page bug when switching menus fast).
+
+**Gendered tile labels** — `_loginGender(u)` (quad→quad gender; grade→email `…g`/`…b`) +
+`_gsfx(gender)` (" Girls"/" Boys") append the gender to grade/quad tiles whose numbers are
+gender-specific (e.g. "Grade 11 Boys").
+
+**Shared display helpers** (defined near `quadChip`): `termRow(...)` renders "This term … ·
+Last term …" (student search, My Students, at-risk); `isRising(s)` / `_hasAttended(s)` /
+`attendQual(s)` classify students; `fmtPhone`/`callPhone`/`phoneLink` format numbers (space
 after the 4th & 7th digit) and tap-to-call (confirm → `tel:`).
 
 ### Icon system
