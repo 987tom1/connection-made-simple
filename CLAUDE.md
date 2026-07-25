@@ -413,7 +413,19 @@ All icons are inline SVG via the `IC` path registry. Helper functions:
 
 Current IC keys: `home, users, chart, alert, id, upload, settings, link, edit, trash, lock, unlock, logout, target, check, key, info, clipboard, pie, group, deck, chevr, chevd, arru, arrd, arrr, xmark, cake`
 
-No emoji or Unicode symbol characters anywhere in the SPA — everything is SVG.
+No emoji or Unicode symbol characters anywhere in the SPA — everything is SVG, **with one
+deliberate exception**: `pray` (2026-07-25). A hand-drawn SVG redraw of the reference praying-
+hands glyph lost too much detail at 16-22px (nav/list sizes) to read as anything but an abstract
+blob, and a set of thin fanned-finger/thumb strokes visually collided with the app's own
+chevron/arrow icons. `pray` is now a raster PNG (`public/img/icons/prayer-mask.png` — the
+reference glyph, background thresholded to alpha=0 so only the linework is opaque) rendered via
+CSS `mask-image` + `background-color:currentColor` (the `.ic-png-mask` class), NOT `<img>` —
+this preserves the same currentColor-driven recoloring every other icon gets (answered=green/
+pending=blue on the student-list prayer summary, nav active-tab tint), which a plain `<img>`
+tag can't do. `icN`/`icS`/`icLg`/`icEmpty` all special-case `k==='pray'` to emit a masked
+`<span>` instead of an inline `<svg>`; the raw `IC['pray']` call site (student-list prayer
+summary) does the same. `pray` is intentionally NOT in the `IC` registry object anymore — don't
+re-add an SVG path there for it.
 
 ### Service worker (`public/sw.js`)
 

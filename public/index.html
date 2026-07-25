@@ -106,6 +106,11 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 .ic-s{width:16px;height:16px}
 .ic-lg{width:32px;height:32px}
 .ic-xs{width:12px;height:12px}
+/* Raster icon exception: 'pray' is a PNG (public/img/icons/prayer-mask.png, alpha-only
+   silhouette) masked with background-color so it still recolors via currentColor like every
+   other icon (answered/pending status, nav active state) — a vector redraw lost too much of
+   the reference glyph's detail at 16-22px. Keep this the ONLY non-SVG icon; see CLAUDE.md. */
+.ic-png-mask{background-color:currentColor;-webkit-mask-image:url(/img/icons/prayer-mask.png);mask-image:url(/img/icons/prayer-mask.png);-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain}
 
 /* Desktop nav — wraps to max 2 rows; labels hidden below 1024px (icon-only) */
 .desk-nav{display:none}
@@ -1505,13 +1510,14 @@ const IC = {
   genderF:  '<circle cx="12" cy="8" r="5"/><line x1="12" y1="13" x2="12" y2="21"/><line x1="9" y1="18" x2="15" y2="18"/>',
   genderM:  '<circle cx="10" cy="14" r="6"/><line x1="14.5" y1="9.5" x2="20" y2="4"/><polyline points="14 4 20 4 20 10"/>',
   eye:      '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
-  pray:     '<path d="M7 21c0-3 1-5 3-6.5M17 21c0-3-1-5-3-6.5M8.5 14.5 7 9c-.4-1.4.3-2.6 1.4-2.9.9-.2 1.7.3 2 1.2L12 11l1.6-3.7c.3-.9 1.1-1.4 2-1.2C16.7 6.4 17.4 7.6 17 9l-1.5 5.5"/>',
   plus:     '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
 };
-function icN(k){ return `<svg class="ic-n" viewBox="0 0 24 24">${IC[k]||''}</svg>`; }
-function icS(k){ return `<svg class="ic-s" viewBox="0 0 24 24">${IC[k]||''}</svg>`; }
-function icLg(k){ return `<svg class="ic-lg" viewBox="0 0 24 24">${IC[k]||''}</svg>`; }
-function icEmpty(k){ return `<svg class="empty-icon" viewBox="0 0 24 24">${IC[k]||''}</svg>`; }
+// 'pray' is the one raster (PNG-masked) icon — see the .ic-png-mask CSS comment — so every
+// helper special-cases it to a masked <span> instead of an inline SVG.
+function icN(k){ return k==='pray' ? '<span class="ic-n ic-png-mask" aria-hidden="true"></span>' : `<svg class="ic-n" viewBox="0 0 24 24">${IC[k]||''}</svg>`; }
+function icS(k){ return k==='pray' ? '<span class="ic-s ic-png-mask" aria-hidden="true"></span>' : `<svg class="ic-s" viewBox="0 0 24 24">${IC[k]||''}</svg>`; }
+function icLg(k){ return k==='pray' ? '<span class="ic-lg ic-png-mask" aria-hidden="true"></span>' : `<svg class="ic-lg" viewBox="0 0 24 24">${IC[k]||''}</svg>`; }
+function icEmpty(k){ return k==='pray' ? '<span class="empty-icon ic-png-mask" aria-hidden="true"></span>' : `<svg class="empty-icon" viewBox="0 0 24 24">${IC[k]||''}</svg>`; }
 // YS brand mark — the square + open-funnel glyph from the logo. Fill-based (not a
 // stroke icon), so it lives outside the IC registry. `color` defaults to currentColor.
 function brandMark(px, color){
@@ -3259,7 +3265,7 @@ async function renderMyStudents() {
         const prayerSummary = sp.length
           ? `<div style="margin-top:4px;display:flex;flex-direction:column;gap:2px">
               ${spShown.map(p => `<div style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink-mid);white-space:nowrap;overflow:hidden">
-                <span style="display:inline-flex;flex-shrink:0;color:${p.status === 'answered' ? 'var(--success)' : 'var(--accent)'}"><svg class="ic-xs" viewBox="0 0 24 24">${IC['pray']}</svg></span>
+                <span style="display:inline-flex;flex-shrink:0;color:${p.status === 'answered' ? 'var(--success)' : 'var(--accent)'}"><span class="ic-xs ic-png-mask" aria-hidden="true"></span></span>
                 <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.text)}</span>
               </div>`).join('')}
               ${spMore > 0 ? `<div style="font-size:11px;color:var(--ink-faint);padding-left:11px">+${spMore} more</div>` : ''}
