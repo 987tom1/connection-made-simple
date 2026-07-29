@@ -1682,7 +1682,7 @@ function renderLogin() {
           <div class="fg"><label class="fl">Password</label><input class="fi" id="lpw" name="password" type="password" placeholder="••••••••" autocomplete="current-password"></div>
           <button class="btn btn-primary btn-full" type="submit">Sign In</button>
         </form>
-        ${/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? `<p style="text-align:center;font-size:12px;color:var(--ink-faint);margin-top:14px">Install as an app — <a href="/install.html" style="color:var(--accent)">how to add to Home Screen</a></p>` : ''}
+        ${/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? `<p style="text-align:center;font-size:12px;line-height:1.9;color:var(--ink-faint);margin-top:14px">Install as an app — <a href="/install.html" style="color:var(--accent)">how to add to Home Screen</a><br>Password not saving? — <a href="/save-password.html" style="color:var(--accent)">how to save it manually</a></p>` : ''}
       </div>
     </div>`;
   document.getElementById('lform')?.addEventListener('submit', e => { e.preventDefault(); doLogin(); });

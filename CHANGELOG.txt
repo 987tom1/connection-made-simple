@@ -4,6 +4,25 @@ All changes since the project was first uploaded to GitHub (2026-06-12).
 Original codebase was copied from the youth-allocation-platform project.
 
 -------------------------------------------------------------------------------
+LOGIN-SCREEN "SAVE YOUR PASSWORD" HELP PAGE  (2026-07-30)
+-------------------------------------------------------------------------------
+- New static page public/save-password.html - step-by-step instructions for
+  adding this site to the phone's password manager BY HAND (iPhone/iPad
+  Passwords app, Android Google Password Manager, plus a short Tip card),
+  for leaders whose phone never offers to save it. Ported back from the camp
+  app; styled from this repo's own install.html (indigo accent, same logo
+  mark, same "Back to sign in" link) so the two help pages match.
+- Page shows the site address to save (from location.host) in a highlighted
+  box and every step refers back to it; keeps install.html's public
+  GET /settings fetch so a rebranded deployment gets its own app name.
+- renderLogin()'s phone-only tip paragraph gained a second line: "Password
+  not saving? - how to save it manually". Same UA gate and styling as the
+  existing "how to add to Home Screen" line.
+- No backend, schema or CSP change (this app sets no CSP response header; the
+  index.html meta policy doesn't apply to a separate static document).
+- SW cache bumped ysc-v52 -> ysc-v53.
+
+-------------------------------------------------------------------------------
 GRADE-LOGIN + ADMIN SETUP POLISH PUNCH LIST  (2026-07-11)
 -------------------------------------------------------------------------------
 - Header brand mark now swaps for a back arrow (-> Home) on any page outside

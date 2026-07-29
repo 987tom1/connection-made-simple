@@ -259,6 +259,17 @@ Role decides RBAC scope; screen usually narrows straight to a symptom-router ent
   fixable iOS platform limitation, not purely a code bug. If it's still unreliable after this,
   compare a plain Safari-tab login against the home-screen-installed app on the same device
   before assuming the timing fix needs more tuning.
+- **A login-screen help link is missing, or `/save-password.html` (or `/install.html`) 404s**:
+  two separate things to check. (1) **Link missing**: both links live in ONE UA-gated paragraph at
+  the end of `renderLogin()` (`/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)`) — they are
+  **phone-only by design**, so not seeing them on a laptop/desktop browser is correct, not a bug;
+  spoof a phone UA before investigating further. (2) **404 on the page itself**: these are plain
+  static files in `public/` (`save-password.html`, added 2026-07-30; `install.html`), served by
+  `express.static('public')` / Vercel's `{ "handle": "filesystem" }` step — check the file is
+  actually committed, and that no new `routes` entry in `vercel.json` shadows it before the
+  filesystem handler runs (that ordering is what bit the dynamic `manifest.json`). Neither page is
+  an API route, so `API_RE` in `sw.js` is irrelevant here; a stale copy served after an edit means
+  the SW cache version wasn't bumped.
 - **Admin's "Reset password" doesn't show the new password afterward**: `submitSetPassword()`
   should open a follow-up modal with a copyable `<input readonly>`, not just a toast — the
   value can never be retrieved again since it's bcrypt-hashed one-way.

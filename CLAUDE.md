@@ -2156,3 +2156,40 @@ Two small, low-risk changes to `renderLogin()`/`doLogin()` (public/index.html):
   tab (should already work reliably) against the installed home-screen app (the harder case) to
   isolate whether this is inherent to standalone mode regardless of timing.
 - **SW cache bumped** `ysc-v48` → `ysc-v49` (`public/sw.js`) since the login HTML changed again.
+
+### Second login-screen help link: `/save-password.html` (2026-07-30)
+
+Ported back from the camp app (which had itself copied `install.html` from here). The two
+password-manager passes above are best-effort — iOS in particular, and *especially* the
+installed standalone app, can simply decline to offer the save prompt — so there needs to be a
+manual fallback a non-technical leader can follow on their own phone rather than a support
+call. **Static page, not an in-app screen**: the SPA shell isn't up on the login screen, which
+is exactly why `install.html` is a separate file too.
+
+- **`public/save-password.html` (NEW)** — three cards: iPhone/iPad (Settings → Passwords, or the
+  standalone Passwords app on iOS 18+), Android (Chrome → Google Password Manager), and a
+  closing "Tip" card saying the pop-up usually appears by itself and these steps are only for
+  when it doesn't. Structure/copy from the camp app; **styling, logo mark and page chrome are
+  copied from this repo's own `install.html`** so the two help pages read as siblings (indigo
+  `#4f46e5`, the circle/arcs mark — none of the camp app's violet/tent branding came across).
+- **It keeps `install.html`'s `/settings` fetch block** (`GET /settings` is a public route, so a
+  rebranded deployment gets its own `ministryConfig.branding.appName` in the `<title>` and the
+  `.js-appname` span in the Tip card). The camp app dropped that block — it has no such field.
+  The `.js-host` → `location.host` line is kept for the same reason `install.html` has it.
+- **The highlighted "The address to save" block near the top is load-bearing** — every numbered
+  step points back at it ("type the address shown in the box above"), because a password manager
+  entry is worthless if the domain doesn't match. The camp version calls it "the purple box";
+  here the steps deliberately say **"the box above"** with no colour word, since `branding.accent`
+  is configurable per deployment and a hardcoded colour name could end up simply wrong.
+- **Login screen** (`renderLogin`, public/index.html): the existing UA-gated tip paragraph
+  (`/iPhone|iPad|iPod|Android/`) now carries a **second line in the same `<p>`** — "Password not
+  saving? — how to save it manually" — same `var(--ink-faint)` / `var(--accent)` treatment as the
+  Home Screen line, plus `line-height:1.9` now that it wraps to two lines. Same gate: desktop
+  never sees either link.
+- **CSP**: this repo sets **no CSP response header** (`express-adapter.ts` sets nosniff/frame/
+  referrer/permissions/COOP/CORP/HSTS only; `vercel.json` has no `headers` block). The only
+  policy is the `<meta>` in `index.html`, which applies to that document alone — so the inline
+  `<script>` in `save-password.html` is unaffected, exactly as `install.html`'s already is.
+- **SW cache bumped** `ysc-v52` → `ysc-v53` (`public/sw.js`) — `public/index.html` changed.
+  The new page rides the normal cache-first static path (it is not an API route, so `API_RE`
+  needs no change).
