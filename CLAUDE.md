@@ -19,7 +19,7 @@ npm install
 npm run dev          # backend + frontend on http://localhost:4300 (tsx watch)
 npm run start        # same, no watch
 npm run typecheck    # tsc --noEmit (strict)
-npm run test         # vitest (186 tests)
+npm run test         # vitest (406 tests as of 2026-07-30; check `npx vitest run` output for the current count)
 ```
 
 Default port: **4300**. Set `PORT=xxxx` to override.
@@ -55,6 +55,7 @@ Seed data only runs when `PERSISTENCE=memory`. Production uses `PERSISTENCE=supa
 | Auth | `POST /auth/login`, `GET /auth/me`, `POST /auth/logout` |
 | Students | `GET/POST /students`, `GET /students/search`, `GET/PATCH/DELETE /students/:id`. `GET /students` takes `?crossGrade=1` — widens a grade/quad login's scoping from "own grade/bracket + own gender" to "own gender only" (Connect Setup's Add Students picker; see "Add Students picker now actually offers a broadened leader's other grade(s)" below) |
 | Leaders | `GET/POST /leaders`, `GET/PATCH/DELETE /leaders/:id`, `PATCH /leaders/:id/sms-template` (self-service, no ownership check — see the SMS templates note below), `PATCH /leaders/:id/grades` (self-service grade broadening, same no-ownership-check pattern — see "Leader self-service grade broadening" below) |
+| Prayers | `GET/POST /prayers`, `GET /prayers/export`, `POST /prayers/import`, `GET /prayers/student/:studentId`, `PATCH /prayers/:id`, `PATCH /prayers/:id/status`, `DELETE /prayers/:id` — `student_id` is nullable (a "general" prayer has no student); a general prayer is scoped by its creator's grade+gender, not read-role RBAC (see "Prayers screen" in debug.md for the gotchas) |
 | Connections | `GET/POST /connections` (also takes `?crossGrade=1`, same widening as `/students` above), `GET /connections/export` (own-gender-only for grade/quad, unconditionally), `GET /connections/student/:id`, `GET /connections/leader/:id`, `DELETE /connections/:studentId/:leaderId`, `GET /connections/allocations/export`, `POST /connections/allocations/import` (admin-only allocation CSV round-trip; body optionally takes `autoCreateLeaders: true` — see "Admin bug/improvement batch" below) |
 | Overview | `GET /overview` |
 | At-risk | `GET /at-risk`, `POST /at-risk/recompute` |
@@ -63,14 +64,31 @@ Seed data only runs when `PERSISTENCE=memory`. Production uses `PERSISTENCE=supa
 | Import | `POST /import/csv`, `GET /import/history`, `DELETE /import/history` (clear log), `DELETE /import/history/:id` (remove one) |
 | Settings | `GET/PATCH /settings` |
 | Admin | `POST /admin/reset` (clears students+leaders+connections+attendance **and connection_audits** — see below), `POST /admin/clear-service-group` (clears service/lifegroup data, **keeps** students+connections+leaders, resets student aggregates), `GET /admin/audit` (log kept; unreachable from the SPA since the Audit tab was removed) |
-| Connection audits | `POST/GET /audits`, `GET/DELETE /audits/:year`, `POST /audits/finalize-live` (builds this year's snapshot from live tables, no CSV upload — used by the New Year Refresh wizard), `GET /audits/export-all` / `POST /audits/import-all` (admin-only full-table backup/restore — see "New Year Refresh wizard" below; registered before `/audits/:year` since Express matches route registration order) |
+| Connection audits | `POST/GET /audits`, `GET/DELETE /audits/:year`, `GET /audits/export-all` / `POST /audits/import-all` (admin-only full-table backup/restore — see "New Year Refresh wizard" below; registered before `/audits/:year` since Express matches route registration order) |
 | Accounts | `GET/POST /accounts/users`, `PATCH /accounts/users/:id`, `POST /accounts/users/password` (admin resets another account), `POST /accounts/me/password` (self-service, requires current password — distinct endpoint, no admin:manage needed; returns `{ ok, token }` — a freshly-issued session token, since `mustChangePassword` is baked into the token at login and this is the one write that needs the caller's own token refreshed — see "Forced password change" gotcha below), `POST /accounts/cohort-layout/preview` / `POST /accounts/cohort-layout/apply` (admin-only "Apply account layout" dry-run/apply pair — see "Admin bug/improvement batch" below) |
+
+**Checklist: adding a new top-level API route.** This has caused two separate production
+incidents (`/manifest.json` 2026-07-11, `/prayers` 2026-07-18) from the same root cause. The
+second incident's own writeup notes the lesson from the first "apparently didn't stick as a
+checklist item" — hence this checklist. A new top-level resource needs registering in **all
+three** of:
+1. `src/api/http/router.ts` — the Express route table.
+2. `vercel.json`'s `routes[]` regex allowlist — Vercel's edge routing runs BEFORE Express;
+   a path not in the regex falls through `{"handle":"filesystem"}` to the SPA catch-all and
+   returns the HTML shell with a **200**, which fails client-side as a confusing JSON-parse
+   error, not a clean 404.
+3. `public/sw.js`'s `API_RE` — otherwise the route gets cache-first treatment and can serve
+   stale/HTML responses.
+
+Then `curl` the new route post-deploy and confirm JSON + the right auth status code (401/403
+unauthenticated) — not just "some 2xx came back".
 
 **Clearing import history ≠ deleting data.** The Import screen's "Clear All" and per-row
 trash only remove `import_records` log rows. `service_sessions.import_id` /
-`lifegroup_weeks.import_id` are **`ON DELETE SET NULL`** (migration `013`; they were
-`CASCADE` before, which silently wiped attendance in production while the in-memory dev path
-didn't — a nasty divergence). Deleting the actual attendance is the job of admin → **Clear
+`lifegroup_weeks.import_id` are **`ON DELETE SET NULL`** (archived migration `013`, now folded
+into `0001_baseline_schema.sql` — see the migrations note below; they were `CASCADE` before,
+which silently wiped attendance in production while the in-memory dev path didn't — a nasty
+divergence). Deleting the actual attendance is the job of admin → **Clear
 Service/Group data** (`clearServiceGroupData`), which deletes sessions/weeks/attendance
 directly and resets student aggregates. `import_id` is provenance only (imports are
 full-replace; `deleteByImport` is unused), so nulling it is safe.
@@ -80,16 +98,32 @@ The Import screen's **new-vs-known preview** (`previewServiceImport`) counts aga
 after every import, which made a re-upload preview show everyone as "new" with 0 updates even
 though the server correctly matched them by name.
 
+## Migrations — consolidated, so old numbers are ARCHIVED numbers
+
+`supabase/migrations/` holds **`0001`–`0008`** (4-digit): `0001_baseline_schema.sql` is the full
+end-state, then `0002_rls`, `0003_seed_accounts`, `0004_backfill_grade_gender`, and the four
+prayer migrations `0005`–`0008`. The original **`001`–`020`** (3-digit) are preserved verbatim in
+**`supabase/migrations_archive/`** — historical record only, outside the CLI's scanned folder.
+
+**So: any 3-digit migration number cited in the dated sections below (e.g. "migration `013`",
+"`018_ministry_config`") refers to an ARCHIVED file, not something you will find in
+`supabase/migrations/`.** Its effect is folded into `0001_baseline_schema.sql`. Don't go looking
+for it, and don't renumber a new migration to match one — the next migration is `0009`.
+
 ## Role hierarchy
 
 | Role | Scope | Key capabilities |
 |------|-------|-----------------|
-| `grade` | Own grade + **own gender** | List own grade/gender students; manage leaders for their cohort; connect same-gender students from any grade. Each grade has separate female/male logins (e.g. `grade9f` / `grade9m`). |
+| `leader` | **Own connected students only** | Junior leader, bound to one `Leader` record via `Actor.leaderId`. Read-only: `student:read` (+sensitive, for call sheets), `leader:read`, `atrisk:read`, `prayer:read`/`prayer:write`. **No** `connection:write`, `leader:write`, `overview:read`, import or admin. Defaults **off** (`ministryConfig.roles.enabled.leader`) — opt in via Youth Setup → Roles. |
+| `grade` | Own grade + **own gender** | List own grade/gender students; manage leaders for their cohort; connect same-gender students from any grade. Each grade has separate girls/boys logins (e.g. `grade9g` / `grade9b` — see the username convention under Seed demo accounts; `…f`/`…m` is an older scheme). |
 | `quad` | Own quad (e.g. Girls Yr 7–9) | Full connection management **within their gender + bracket**: add leaders, connect/disconnect, edit/remove. Sees only same-gender leaders/students. |
 | `director` | Ministry-wide | All of above + import CSV data |
 | `admin` | All + back office | Everything + settings, accounts, year-rollover |
 
-There is always exactly one `admin` account. It cannot be deleted.
+There is always exactly one `admin` account. It cannot be deleted. Director/Grade/Quad default
+**on** and Leader defaults **off**; all four are toggled in Youth Setup → Roles
+(`ministryConfig.roles.enabled`), which is UI-level only — `account.service.ts` does not gate
+account creation on it.
 
 **Scoping reality:**
 - `Actor.gender` is **derived at sign-in** (`auth.service.deriveActorGender`): quad logins
@@ -229,7 +263,23 @@ PERSISTENCE=supabase     # production; use "memory" for local dev with seed data
 DATABASE_URL=<supabase-connection-string>
 DATA_DIR=./data          # only used for PERSISTENCE=json
 CORS_ORIGINS=*
+APP_ORIGIN=https://<your-deployment>.vercel.app   # CORS fallback when CORS_ORIGINS is unset
+SESSION_SECRET=<random>  # REQUIRED in production, or session tokens can be forged
+
+# Required whenever PERSISTENCE=supabase — read directly from process.env by
+# src/utils/field-crypto.ts, NOT via src/config/env.ts. Encrypts students.mobile and
+# students.parent_phone at rest. See the "Phone field encryption at rest" section below.
+FIELD_ENCRYPTION_KEY=<base64, 32 bytes>
+FIELD_ENCRYPTION_KEY_ID=<id>
+FIELD_ENCRYPTION_KEY_PREV=<base64>    # only during a key rotation
+FIELD_ENCRYPTION_KEY_PREV_ID=<id>     # only during a key rotation
 ```
+
+⚠ **`FIELD_ENCRYPTION_KEY` is a hard runtime dependency of nearly every read endpoint** once
+any row is encrypted — a whole-table read maps every row through the decrypt, so one
+undecryptable value fails the entire query (Home / `/overview` / `/trends` / `/students` /
+`/connections` together). It must be set in prod env **before or with** any deploy that ships
+the encryption-aware code, never after. Losing it = losing both phone columns permanently.
 
 **GOTCHA — production `DATABASE_URL` must use the connection POOLER, not the direct
 connection.** On Vercel serverless, the direct connection (`db.<ref>.supabase.co:5432`)
@@ -411,7 +461,10 @@ All icons are inline SVG via the `IC` path registry. Helper functions:
 | `icLg(k)` | 32 px | Large feature icons |
 | `icEmpty(k)` | 48 px | Empty-state backgrounds |
 
-Current IC keys: `home, users, chart, alert, id, upload, settings, link, edit, trash, lock, unlock, logout, target, check, key, info, clipboard, pie, group, deck, chevr, chevd, arru, arrd, arrr, xmark, cake`
+Current IC keys (as of 2026-07-30 — grep `const IC = {` in `public/index.html` for the live set):
+`home, users, chart, alert, id, upload, settings, link, edit, trash, lock, unlock, logout, target,
+check, key, info, clipboard, pie, group, deck, chevr, chevd, arru, arrd, arrr, arrl, xmark, bell,
+cake, cross, heart, genderF, genderM, eye, plus`
 
 No emoji or Unicode symbol characters anywhere in the SPA — everything is SVG, **with one
 deliberate exception**: `pray` (2026-07-25). A hand-drawn SVG redraw of the reference praying-
@@ -429,7 +482,7 @@ re-add an SVG path there for it.
 
 ### Service worker (`public/sw.js`)
 
-- Cache name: `cms-v32` (bump on any SPA/asset change to force eviction — see the dated changelog for the running history)
+- Cache name: `ysc-v53` as of 2026-07-30 (bump on any SPA/asset change to force eviction — see the dated changelog for the running history; check `public/sw.js`'s `CACHE` constant for the current value)
 - **Excel import** (all upload points — main import, allocations, every Connection Audit slot):
   `readXlsx(buf)` now uses the vendored **SheetJS** build (`public/vendor/xlsx.full.min.js`),
   **lazy-loaded** via `_ensureXlsx()` only when an Excel file is chosen (same-origin, so CSP

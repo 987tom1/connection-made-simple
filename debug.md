@@ -1,4 +1,4 @@
-# debug.md — Connection Made Simple debugging map
+# debug.md — YS Connection debugging map
 
 > Companion to `CLAUDE.md`. Read **both** when picking up a bug report.
 > CLAUDE.md = system/architecture/contract + the dated changelog of what shipped and why.
@@ -14,8 +14,9 @@
    bugs live in one function.
 
 > **Verify & deploy conventions (this repo):**
-> - Primary gate: `npm run typecheck` + `npm run test` (208+ tests). Both must be clean before
->   calling anything done.
+> - Primary gate: `npm run typecheck` + `npm run test` (406 tests as of 2026-07-30; check
+>   `npx vitest run` output for the current count). Both must be clean before calling anything
+>   done.
 > - **Don't browser-verify by default.** `typecheck` + `test` passing is normally sufficient to
 >   call a fix done — don't spin up the dev server and drive the Chrome extension as a matter of
 >   routine, it's slower than the signal is worth for most changes. Reserve it for a change that's
