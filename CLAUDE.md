@@ -2016,6 +2016,41 @@ the server default apply) and removing `_myLeaderLabel()`, which had no other ca
 `ysc-v46` → `ysc-v47`. Existing prayers created before this fix keep whatever label they were
 given — not backfilled, wasn't asked for.
 
+### Bug: both Elvanto export-guide buttons had been dead since 2026-07-12 (2026-07-30)
+
+Reported as "the 'How do I export these files from Elvanto?' button isn't working on the data
+import screen". It threw a `TypeError` and opened nothing — and the **same bug silently killed
+the Connection Audit Data tab's guide button too**, since both go through the one viewer.
+
+- **Root cause**: the 2026-07-12 terminology-wiring pass (see "Admin bug/improvement batch"
+  above) converted `EXPORT_GUIDES` from a module-scope `const` object into a **function**
+  `EXPORT_GUIDES()`, so its copy would pick up a customised `labels.serviceNight`/`smallGroup`
+  at call time instead of freezing them at script-parse time — the same treatment `STG`/
+  `STG_SHORT` got in that pass. But while every `STG`/`STG_SHORT` call site was updated, the
+  three `EXPORT_GUIDES` call sites were **not**: `openExportGuide`, `_egGo` and `_egDraw` kept
+  indexing it as the plain object it used to be (`EXPORT_GUIDES[key]`). Indexing a function by
+  a non-existent property returns `undefined`, so `openExportGuide` fell to its `'import'`
+  default and then threw on `EXPORT_GUIDES[_egKey].title` — `Cannot read properties of
+  undefined (reading 'title')`. An `onclick` handler that throws fails silently to the user:
+  the overlay never gets its `.show` class, so the button reads as simply doing nothing.
+- **Fix**: one accessor, `_egGuide(key)` → `EXPORT_GUIDES()[key]`, used by all three call
+  sites. Grepped the two sibling functions converted in the same pass (`STG(`/`STG_SHORT(`) —
+  both clean, no other instance of this mistake in the file.
+- **Why nothing caught it for 18 days**: the guides are pure inline SPA JS with no test
+  coverage, and `typecheck`/`test` can't see inside `public/index.html` at all. Closed with
+  `src/tests/export-guide.test.ts` (4 tests, 406 → **410**) — it extracts the REAL
+  `EXPORT_GUIDES`/`_egGuide`/`openExportGuide`/`_egGo`/`_egDraw` bodies out of the shipped
+  HTML by name and runs them against a small DOM stub, the same extract-and-evaluate pattern
+  `logo-crop-math.test.ts` already established. All 4 failed with the exact production
+  `TypeError` before the fix.
+- **Lesson (this file's second instance of it)**: converting a module-scope `const` to a
+  function in `public/index.html` is a **call-site-wide change** — `X[k]` on a function is not
+  a syntax error, not a type error, and not a test failure here; it's a silent `undefined`
+  that only surfaces when a user clicks. When making a config/label value lazy this way, grep
+  every bare `NAME[` and `NAME.` reference in the same commit, not just the ones you happened
+  to be editing.
+- SW cache bumped `ysc-v53` → **`ysc-v54`**.
+
 ## Phone field encryption at rest (students.mobile / students.parent_phone) — implemented 2026-07-18
 
 Both fields are encrypted at rest with AES-256-GCM (`src/utils/field-crypto.ts`, ported from

@@ -201,6 +201,31 @@ Role decides RBAC scope; screen usually narrows straight to a symptom-router ent
   directly post-deploy (expect JSON + the right auth status code) — don't just check
   already-covered routes and assume it generalises.
 
+### Elvanto export guides ("How do I export these files from Elvanto?")
+
+- **A guide button does nothing at all when clicked** (no overlay, no error toast): open the
+  browser console — this is almost certainly a **thrown exception inside the `onclick`**, which
+  fails silently by design. Real instance, fixed 2026-07-30: `EXPORT_GUIDES` is a **function**
+  (`EXPORT_GUIDES()`, so its copy picks up customised labels at call time), but three call
+  sites still indexed it like the object it used to be — `EXPORT_GUIDES[key]` → `undefined` →
+  `TypeError` on the next property read. All three now go through **`_egGuide(key)`** (grep it);
+  if a new call site is added, it must use that accessor too. **Both** buttons (Import screen
+  and the CA Data tab) share this one viewer, so a break here always takes out both — if only
+  ONE button is missing, it's the gating below, not this.
+- **A guide button isn't rendered at all**: `_exportGuidesOn()` — Youth Setup → Modules &
+  Import → `modules.exportGuides` set to `'hidden'` removes both buttons. Expected, not a bug.
+- **A screenshot is missing/broken in a step**: images are plain static files under
+  `public/img/export-help/*.png`, cache-first in the SW — replacing one needs a `CACHE` bump in
+  `public/sw.js` or the old image is served forever.
+- **Guide copy shows "Friday Nights"/"Lifegroup" for a ministry that renamed them**: the steps
+  read `L('serviceNight')`/`L('smallGroup')` at call time — if a literal is showing instead,
+  that string was hardcoded rather than going through `L()`. Note the *Elvanto* UI values in
+  the copy (e.g. "Demographics: Youth") are deliberately NOT wired to `L()` — they're Elvanto's
+  own option names, not this app's terminology.
+- Regression coverage: `src/tests/export-guide.test.ts` extracts the real functions from
+  `public/index.html` and drives them against a DOM stub — run it after touching anything in
+  the `_eg*` block.
+
 ### Mobile viewport / iOS Safari quirks
 
 - **White/grey gap appears below the bottom nav after using the keyboard** (e.g. typing in the

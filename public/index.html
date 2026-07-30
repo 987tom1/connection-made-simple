@@ -971,18 +971,22 @@ function EXPORT_GUIDES() { return {
   ]}
 };}
 let _egKey = 'import', _egIdx = 0, _egTouchX = null;
+// EXPORT_GUIDES is a FUNCTION (see the comment above it) — always call it, never
+// index it like the plain object it used to be. Doing that returned undefined and
+// threw on the next property read, which silently killed both guide buttons.
+function _egGuide(key) { return EXPORT_GUIDES()[key]; }
 function openExportGuide(key) {
-  _egKey = EXPORT_GUIDES[key] ? key : 'import'; _egIdx = 0;
-  document.getElementById('egTitle').textContent = EXPORT_GUIDES[_egKey].title;
+  _egKey = _egGuide(key) ? key : 'import'; _egIdx = 0;
+  document.getElementById('egTitle').textContent = _egGuide(_egKey).title;
   document.getElementById('egX').innerHTML = icS('xmark');
   _egDraw();
   document.getElementById('exportGuide').classList.add('show');
 }
 function closeExportGuide() { document.getElementById('exportGuide').classList.remove('show'); }
-function _egGo(d) { const n = _egIdx + d; if (n < 0 || n >= EXPORT_GUIDES[_egKey].steps.length) return; _egIdx = n; _egDraw(); }
+function _egGo(d) { const n = _egIdx + d; if (n < 0 || n >= _egGuide(_egKey).steps.length) return; _egIdx = n; _egDraw(); }
 function _egZoom(w) { w.classList.toggle('zoom'); }
 function _egDraw() {
-  const steps = EXPORT_GUIDES[_egKey].steps, s = steps[_egIdx], body = document.getElementById('egBody');
+  const steps = _egGuide(_egKey).steps, s = steps[_egIdx], body = document.getElementById('egBody');
   body.innerHTML = '<div class="eg-step">' + s.step + '</div>'
     + (s.note ? '<div class="eg-note">' + esc(s.note) + '</div>' : '')
     + '<p class="eg-cap">' + s.cap + '</p>'
